@@ -25,7 +25,7 @@ This Distributed System is make using Exclusion lock mechanism along with multi-
 
 => Use the utils file to store any method that is not the original method of the assignment specification. 
 
-=> Run following command before generating proto using the cmmand given in assignement:
+=> Run following command before generating proto using the command given in assignement:
 pip install grpcio grpcio-tools
 
 => The command given in assignment have to run on root directory.
