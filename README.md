@@ -38,7 +38,7 @@ please make sure to run proto command each time that is done.
    ## Client Library
    Client library main file is : Client/client.py
    1. Create functional structure of client.py - Aditi
-   2. Create the proto files, using the command given
+   2. Create the proto files, using the command given - Aditi
    3. Create init method.
    4. Create Acqruire lock method
    5. Create Release lock method
@@ -51,7 +51,7 @@ please make sure to run proto command each time that is done.
    ## Lock Server
    Server's main file is: Server/server.py. 
    For server implementation refer to the spinlock implementation given in assigment readme and assignment folder.
-   1. Create the proto files, using the command given
+   1. Create the proto files, using the command given - Aditi
    2. Add 100 files to Server folder.
    3. Create functional structure of server.py - Aditi
    4. Create the init method
