@@ -9,8 +9,6 @@ This Distributed System is make using Exclusion lock mechanism along with multi-
 
 => Assign a point from below to yourself. Explain in this readme about the code you are going to do in the next section below -> commit the explanation -> start coding.
 
-=> Server require some pre-setup in everyone's system. For first time setup, do create the proto file.
-
 => First both init needs to be created and tested to check the working of our server.
 
 => After checking init we can start working seperately by putting name infront of the task we are doing in any order.
