@@ -55,7 +55,7 @@ please make sure to run proto command each time that is done.
    4. Create the init method
    5. Create structure for multithreaded environment
    6. Create the lock_acquire method - Nandita
-   7.  Create the lock_acquire method - Nandita
+   7.  Create the lock_release method - Nandita
    8. Create the append_file method.
    9. Create close method
 
