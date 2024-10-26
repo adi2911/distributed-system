@@ -38,8 +38,8 @@ please make sure to run proto command each time that is done.
    1. Create functional structure of client.py - Aditi
    2. Create the proto files, using the command given - Aditi
    3. Create init method.
-   4. Create Acqruire lock method
-   5. Create Release lock method
+   4. Create Acqruire lock method - Nandita
+   5. Create Release lock method - Nandita
    6. Create Append file method
        a. It should filter the file client is modifying
        b. Perform append operation on it.
@@ -54,8 +54,8 @@ please make sure to run proto command each time that is done.
    3. Create functional structure of server.py - Aditi
    4. Create the init method
    5. Create structure for multithreaded environment
-   6. Create the lock_acquire method
-   7.  Create the lock_acquire method
+   6. Create the lock_acquire method - Nandita
+   7.  Create the lock_acquire method - Nandita
    8. Create the append_file method.
    9. Create close method
 
