@@ -27,20 +27,30 @@ This Distributed System is make using Exclusion lock mechanism along with multi-
 
 => Use the utils file to store any method that is not the original method of the assignment specification. 
 
+=> Run following command before generating proto using the cmmand given in assignement:
+pip install grpcio grpcio-tools
+
+=> The command given in assignment have to run on root directory.
+
+=> Update proto files as required for the commnuication between server and client. That is you can add or update any field in proto
+please make sure to run proto command each time that is done.
+
    ## Client Library
    Client library main file is : Client/client.py
    1. Create functional structure of client.py - Aditi
-   2. Create init method.
-   3. Create Acqruire lock method
-   4. Create Release lock method
-   5. Create Append file method
+   2. Create the proto files, using the command given
+   3. Create init method.
+   4. Create Acqruire lock method
+   5. Create Release lock method
+   6. Create Append file method
        a. It should filter the file client is modifying
        b. Perform append operation on it.
-   6. Create a prompt that takes input from client with the file name that needs to be updated.
-   7. Create close method.
+   7. Create a prompt that takes input from client with the file name that needs to be updated.
+   8. Create close method.
   
    ## Lock Server
-   Server's main file is: Server/server.py
+   Server's main file is: Server/server.py. 
+   For server implementation refer to the spinlock implementation given in assigment readme and assignment folder.
    1. Create the proto files, using the command given
    2. Add 100 files to Server folder.
    3. Create functional structure of server.py - Aditi
