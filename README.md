@@ -61,3 +61,4 @@ please make sure to run proto command each time that is done.
 
 # Design Pointers
 Mention every method you write what it does what it handles, which all files the code is included.
+https://www.velotio.com/engineering-blog/grpc-implementation-using-python
