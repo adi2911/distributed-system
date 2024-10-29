@@ -1,5 +1,6 @@
 from Proto import lock_pb2
 from Proto import lock_pb2_grpc
+import time
 import grpc
 
 class Client:
@@ -15,14 +16,14 @@ class Client:
         self.client_id = response.rc
         print(f"Assigned client with id: {self.client_id}")
 
-    def RPC_lock_acquire():
+    def RPC_lock_acquire(self):
         response = self.stub.lock_acquire(lock_pb2.lock_args())
         if response.status == lock_pb2.Status.SUCCESS:
             print(f"Lock has been Acquired by clinet: {self.client_id}")
         else:
             print(f"Lock cannot be acquired by client: {self.client_id} as it is held by another client")
 	
-    def RPC_lock_release():
+    def RPC_lock_release(self):
         response = self.stub.lock_release(lock_pb2.lock_args())
         if response.status == lock_pb2.Status.SUCCESS:
                 print(f"Lock has been Released by client: {self.client_id}")
@@ -38,4 +39,5 @@ if __name__ == '__main__':
     client = Client()
     client.RPC_init()
     client.RPC_lock_acquire()
+    time.sleep(15)
     client.RPC_lock_release()
