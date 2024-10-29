@@ -1,54 +1,66 @@
 from concurrent import futures
 import grpc
+import threading
+from collections import deque
 from Proto import lock_pb2
 from Proto import lock_pb2_grpc
 
-
 class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
     def __init__(self):
-        self.lock_table = {}
-        self.active_clients = {}
-        self.next_client_id = 1 
-        
+        self.current_lock_holder = None  # Store the client ID of the current lock holder
+        self.waiting_queue = deque()  # Queue for clients waiting for the lock
+        self.next_client_id = 1  # ID assignment for new clients
+        self.lock = threading.Lock()  # Synchronization lock
+
     def client_init(self, request, context):
-        client_id = self.next_client_id
-        self.next_client_id += 1
-        self.active_clients[context.peer()] = client_id # context.peer() uniquely identifies client connection at a network level. returns eg: ipv4:a.b.c.d:xyx I added it for tracking ?
-        print(f"Client initialized with client_id: {client_id}")
+        with self.lock: 
+            client_id = self.next_client_id
+            self.next_client_id += 1
+            print(f"Client initialized with client_id: {client_id}")
         return lock_pb2.Int(rc=client_id)
     
     def lock_acquire(self, request, context):
-        client_id = self.active_clients.get(context.peer())
-        if client_id is None:
-            return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
-        
-        if client_id in self.lock_table:
-            return lock_pb2.Response(status=lock_pb2.Status.SUCCESS) # lock already acquired by this client_id
-        elif any(self.lock_table.values()):
-            return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR) # some other client holds lock
-        else:
-            self.lock_table[client_id] = True 
-            print(f"Lock Acquired by client: {client_id}")
-            return lock_pb2.Response(status=lock_pb2.Status.SUCCESS) # lock acquired
+        client_id = request.client_id
+
+        with self.lock:  
+            if self.current_lock_holder == client_id:
+                return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+
+            if self.current_lock_holder is not None:
+                if client_id not in self.waiting_queue:
+                    self.waiting_queue.append(client_id)
+                print(f"Client {client_id} added to waiting queue")
+                return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+
+            self.current_lock_holder = client_id
+            print(f"Lock acquired by client: {client_id}")
+            return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
         
     def lock_release(self, request, context):
-        client_id = self.active_clients.get(context.peer())
-        if client_id is None:
-            return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
-        if self.lock_table.get(client_id):
-            self.lock_table.pop(client_id)
-            print(f"Lock released by client: {client_id}")
-            return lock_pb2.Response(status=lock_pb2.Status.SUCCESS) #lock released
-        else:
-            return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR) # no lock to release
-            
-    def append_file():
+        client_id = request.client_id
+
+        with self.lock:  
+            if self.current_lock_holder == client_id:
+                self.current_lock_holder = None  # Release the lock
+                print(f"Lock released by client: {client_id}")
+
+                if self.waiting_queue:
+                    next_client_id = self.waiting_queue.popleft()
+                    self.current_lock_holder = next_client_id
+                    print(f"Lock granted to next client in queue: {next_client_id}")
+
+                return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+            else:
+                return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+    
+    def append_file(self, request, context):
         pass
-    def close():
-         pass
+    
+    def close(self, request, context):
+        pass
 
 def serve():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))  # Multi-threaded server
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))  
     lock_pb2_grpc.add_LockServiceServicer_to_server(LockServiceServicer(), server)
     server.add_insecure_port('[::]:50051')
     server.start()
@@ -56,5 +68,4 @@ def serve():
     server.wait_for_termination()
 
 if __name__ == '__main__':
-	serve()
-
+    serve()
