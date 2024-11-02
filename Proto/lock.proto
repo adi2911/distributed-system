@@ -2,33 +2,40 @@ syntax = "proto3";
 
 package lock_service;
 
-// lock acquire/release arguments, add any fields you want
+// Lock acquire/release arguments, with additional fields for request ID and version
 message lock_args {
     int32 client_id = 1;
-    
+    string request_id = 2;  // Unique ID for each request to handle duplicate detection
 }
 
-// server return Status, we will add more in the future
+// Server response Status, can be expanded if more statuses are needed
 enum Status {
-    SUCCESS = 0;   
-    FILE_ERROR = 1;    
+    SUCCESS = 0;
+    FILE_ERROR = 1;
+    TIMEOUT_ERROR = 2;  // New status for heartbeat timeout scenarios
 }
 
-// response struct, adjust or add any fields you want
+// Response struct with an optional lock version
 message Response {
     Status status = 1;
+    int32 version = 2;  // Version to ensure versioned lock ownership
 }
 
-// file append arguments, add any fields you want
+// File append arguments, unchanged
 message file_args {
     string filename = 1;
     bytes content = 2;
     int32 client_id = 3;
 }
 
-// field to hold an int, because the arguments and return values should be "message" type
+// Field to hold an int, used for simple initialization requests
 message Int {
     int32 rc = 1;
+}
+
+// Heartbeat message to keep track of active clients
+message Heartbeat {
+    int32 client_id = 1;
 }
 
 service LockService {
@@ -37,4 +44,5 @@ service LockService {
     rpc lock_release(lock_args) returns (Response);
     rpc file_append(file_args) returns (Response);
     rpc client_close(Int) returns (Int);
+    rpc heartbeat(Heartbeat) returns (Response);  // New heartbeat RPC for client liveness checks
 }

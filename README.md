@@ -48,11 +48,14 @@ This Distributed System is make using Exclusion lock mechanism along with multi-
    3. Create init method. -  Himanshi
    4. Create Acqruire lock method - Nandita
    5. Create Release lock method - Nandita
-   6. Create Append file method
-       a. It should filter the file client is modifying
+   6. Create Append file method - Himanshi
+       a. It should filter the file client is modifying 
        b. Perform append operation on it.
-   7. Create a prompt that takes input from client with the file name that needs to be updated.
+   7. Create a prompt that takes input from client with the file name that needs to be updated. - Himanshi
    8. Create close method.
+   9. Add retry-mechanism - Aditi
+   10. Send Heart-beat - Aditi
+   11. Add Data consistency - Aditi
   
 ## Lock Server
    Server's main file is: Server/server.py. 
@@ -64,8 +67,25 @@ This Distributed System is make using Exclusion lock mechanism along with multi-
    5. Create structure for multithreaded environment
    6. Create the lock_acquire method - Nandita
    7.  Create the lock_release method - Nandita
-   8. Create the append_file method.
+   8. Create the append_file method. - Nanditaa
    9. Create close method
+   10. Add fault-tolerance for server crash - Aditi
+   11. Add Heart-beat mechanism - Aditi
+
 
 # Design Pointers
 Mention every method you write what it does what it handles, which all files the code is included.
+
+## Fault Taulerance 
+
+1. Network Failure: Packet Loss (Retry Mechanism)
+Client-Side Change: Implement a retry mechanism in the client to handle packet loss, with a maximum retry count.
+2. Network Failure: Duplicated Requests (Idempotent Handling)
+Server-Side Change: Track each request by a unique ID to ensure idempotent operations.
+3. Client Crash (Heartbeat Mechanism)
+Client-Side Change: Send periodic heartbeats to the server while holding the lock.
+Server-Side Change: Use heartbeats to detect client crashes and release locks after a timeout.
+4. Client Crash with Data Consistency (Versioned Lock Ownership)
+Server-Side Change: Add a version counter to ensure only the latest client with the lock can modify or release it.
+5. Server Crash and Recovery (Log-Structured File System)
+Server-Side Change: Log each lock acquisition, release, and waiting queue state. On restart, the server will replay the log to restore the state.
