@@ -21,7 +21,7 @@ message Response {
     int32 version = 2;  // Version to ensure versioned lock ownership
 }
 
-// File append arguments, unchanged
+// File append arguments
 message file_args {
     string filename = 1;
     bytes content = 2;
@@ -44,5 +44,5 @@ service LockService {
     rpc lock_release(lock_args) returns (Response);
     rpc file_append(file_args) returns (Response);
     rpc client_close(Int) returns (Int);
-    rpc heartbeat(Heartbeat) returns (Response);  // New heartbeat RPC for client liveness checks
+    rpc heartbeat(Heartbeat) returns (Response);
 }

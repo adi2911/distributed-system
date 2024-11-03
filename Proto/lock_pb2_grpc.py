@@ -100,8 +100,7 @@ class LockServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def heartbeat(self, request, context):
-        """New heartbeat RPC for client liveness checks
-        """
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')

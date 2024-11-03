@@ -1,0 +1,69 @@
+import os
+import uuid
+import json
+import time
+from Proto import lock_pb2
+
+# Define the log file path
+LOG_FILE = "server_state_log.json"
+
+def log_event(event):
+    """Append an event to the log file."""
+    with open(LOG_FILE, "a") as f:
+        timestamped_event = {"timestamp": time.time(), "event": event}
+        f.write(json.dumps(timestamped_event) + "\n")
+
+def load_server_state(server):
+    """Load the server's state from the log file on restart."""
+    if not os.path.exists(LOG_FILE):
+        return  # No log file means no state to restore
+
+    with open(LOG_FILE, "r") as f:
+        for line in f:
+            event_data = json.loads(line.strip())
+            event = event_data["event"]
+
+            # Restore server state based on each logged event
+            if event.startswith("Client initialized"):
+                # Example: "Client initialized with client_id: X"
+                client_id = int(event.split(": ")[1])
+                server.next_client_id = max(server.next_client_id, client_id + 1)
+            elif event.startswith("Lock acquired"):
+                # Example: "Lock acquired by client: X, version: Y"
+                parts = event.split(", ")
+                client_id_part = parts[0]
+                version_part = parts[1]
+                client_id = int(client_id_part.split(": ")[1])
+                version = int(version_part.split(": ")[1])
+                server.current_lock_holder = (client_id, version)
+                server.current_version = version
+            elif event.startswith("Lock released"):
+                # Lock has been released, so set current_lock_holder to None
+                server.current_lock_holder = None
+            elif event.startswith("Client added to waiting queue"):
+                # Example: "Client added to waiting queue: X"
+                client_id = int(event.split(": ")[1])
+                if client_id not in [c[0] for c in server.waiting_queue]:
+                    server.waiting_queue.append((client_id, None))  # 'None' for peer
+            elif event.startswith("Lock granted to next client in queue"):
+                # Example: "Lock granted to next client in queue: X, version: Y"
+                parts = event.split(", ")
+                client_id_part = parts[0]
+                version_part = parts[1]
+                client_id = int(client_id_part.split(": ")[1])
+                version = int(version_part.split(": ")[1])
+                server.current_lock_holder = (client_id, version)
+                server.current_version = version
+
+def is_duplicate_request(request_id):
+    """Check if the request ID has been processed already."""
+    if not hasattr(is_duplicate_request, "processed_requests"):
+        is_duplicate_request.processed_requests = set()
+
+    return request_id in is_duplicate_request.processed_requests
+
+def mark_request_processed(request_id):
+    """Mark the request ID as processed."""
+    if not hasattr(is_duplicate_request, "processed_requests"):
+        is_duplicate_request.processed_requests = set()
+    is_duplicate_request.processed_requests.add(request_id)
