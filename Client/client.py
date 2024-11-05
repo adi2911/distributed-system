@@ -3,7 +3,6 @@ from Proto import lock_pb2_grpc
 import grpc
 import time
 import threading
-import uuid
 
 class Client:
     def __init__(self):
@@ -49,22 +48,29 @@ class Client:
                 retry_interval = min(retry_interval * 2, 30)
 
     def RPC_lock_release(self):
-        try:
-            request_id = self.generate_request_id()
-            response = self.stub.lock_release(lock_pb2.lock_args(
-                client_id=self.client_id,
-                request_id=request_id
-            ))
-            if response.status == lock_pb2.Status.SUCCESS:
-                print(f"Lock has been released by client: {self.client_id}")
-                # Stop the heartbeat thread
-                self.stop_heartbeat = True
-                if hasattr(self, 'heartbeat_thread'):
-                    self.heartbeat_thread.join()
-            else:
-                print(f"Lock cannot be released by client: {self.client_id} as it doesn't hold the lock")
-        except grpc.RpcError:
-            print("Error releasing lock: Server may be unavailable.")
+        retry_interval = 2  # Initial retry interval
+        while True:
+            try:
+                request_id = self.generate_request_id()
+                response = self.stub.lock_release(lock_pb2.lock_args(
+                    client_id=self.client_id,
+                    request_id=request_id
+                ))
+                if response.status == lock_pb2.Status.SUCCESS:
+                    print(f"Lock has been released by client: {self.client_id}")
+                    # Stop the heartbeat thread
+                    self.stop_heartbeat = True
+                    if hasattr(self, 'heartbeat_thread'):
+                        self.heartbeat_thread.join()
+                    break  # Exit the loop if lock release was successful
+                else:
+                    print(f"Lock cannot be released by client: {self.client_id} as it doesn't hold the lock")
+                    break  # Exit if lock release failed for other reasons
+
+            except grpc.RpcError:
+                print(f"Error releasing lock: Server may be unavailable. Retrying in {retry_interval} seconds...")
+                time.sleep(retry_interval)
+                retry_interval = min(retry_interval * 2, 30)  # Exponential backoff with a max wait time
 
     def send_heartbeats(self):
         while not self.stop_heartbeat:

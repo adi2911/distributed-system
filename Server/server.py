@@ -87,49 +87,46 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
     def check_heartbeats(self):
         """Periodically check heartbeats to release lock if the client is inactive."""
         while True:
-            time.sleep(1)  # Check every second
+            time.sleep(1)
             current_time = time.time()
             
             with self.lock:
-                # if not self.heartbeat_intervals and self.current_lock_holder:
-                #     print("No active clients. Releasing lock held by inactive client.")
-                #     self.current_lock_holder = None
-                #     log_event("Lock automatically released as no active clients were detected.")
-                
-                #     # Grant the lock to the next client in the queue if available
-                #     if self.waiting_queue:
-                #         next_client_id, next_peer = self.waiting_queue.popleft()
-                #         self.current_version += 1
-                #         self.current_lock_holder = (next_client_id, self.current_version)
-                #         self.heartbeat_intervals[next_client_id] = time.time()
-                #         log_event(f"Lock granted to next client in queue: {next_client_id}, version: {self.current_version}")
-                #     continue  # Skip to the next check cycle
+                log_event(f"Heartbeat intervals: {self.heartbeat_intervals}")
 
+                if self.current_lock_holder:
+                    lock_holder_id = self.current_lock_holder[0]
+                    last_heartbeat = self.heartbeat_intervals.get(lock_holder_id, 0)
+                    
+                    if current_time - last_heartbeat > 5:
+                        print(f"No heartbeat from current lock holder (Client {lock_holder_id}) for 5 seconds. Releasing lock.")
+                        self.current_lock_holder = None
+                        log_event(f"Lock released due to timeout for client: {lock_holder_id}")
 
+                        if self.waiting_queue:
+                            next_client_id, _ = self.waiting_queue.popleft()
+                            self.current_version += 1
+                            self.current_lock_holder = (next_client_id, self.current_version)
+                            self.heartbeat_intervals[next_client_id] = time.time()
+                            log_event(f"Lock granted to next client in queue: {next_client_id}, version: {self.current_version}")
+
+                # General timeout check
                 for client_id, last_heartbeat in list(self.heartbeat_intervals.items()):
-                    # Check if any client's heartbeat has timed out (10-second timeout)
                     if current_time - last_heartbeat > 10:
                         print(f"Client {client_id} timed out. Releasing lock if held by this client.")
-                        
-                        # If the timed-out client holds the lock, release it
                         if self.current_lock_holder and self.current_lock_holder[0] == client_id:
-                            # Release the lock
                             self.current_lock_holder = None
                             log_event(f"Lock automatically released due to timeout for client: {client_id}")
 
-                            # Assign lock to the next client in the waiting queue, if available
                             if self.waiting_queue:
-                                next_client_id, next_peer = self.waiting_queue.popleft()
+                                next_client_id, _ = self.waiting_queue.popleft()
                                 self.current_version += 1
                                 self.current_lock_holder = (next_client_id, self.current_version)
                                 self.heartbeat_intervals[next_client_id] = time.time()
                                 log_event(f"Lock granted to next client in queue: {next_client_id}, version: {self.current_version}")
-                        
-                        # Remove the inactive client from heartbeat tracking
                         del self.heartbeat_intervals[client_id]
 
     def file_append(self, request, context):
-        pass
+            pass
 
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))  
