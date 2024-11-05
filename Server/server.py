@@ -60,6 +60,9 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         with self.lock:
             if is_duplicate_request(request_id):
                 return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+            if self.current_lock_holder != client_id:
+                return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+
 
             mark_request_processed(request_id)
 
@@ -97,8 +100,7 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
                     lock_holder_id = self.current_lock_holder[0]
                     last_heartbeat = self.heartbeat_intervals.get(lock_holder_id, 0)
                     
-                    if current_time - last_heartbeat > 5:
-                        print(f"No heartbeat from current lock holder (Client {lock_holder_id}) for 5 seconds. Releasing lock.")
+                    if current_time - last_heartbeat >= 5:
                         self.current_lock_holder = None
                         log_event(f"Lock released due to timeout for client: {lock_holder_id}")
 
@@ -111,8 +113,7 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
 
                 # General timeout check
                 for client_id, last_heartbeat in list(self.heartbeat_intervals.items()):
-                    if current_time - last_heartbeat > 10:
-                        print(f"Client {client_id} timed out. Releasing lock if held by this client.")
+                    if current_time - last_heartbeat >= 30:
                         if self.current_lock_holder and self.current_lock_holder[0] == client_id:
                             self.current_lock_holder = None
                             log_event(f"Lock automatically released due to timeout for client: {client_id}")
