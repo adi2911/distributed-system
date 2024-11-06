@@ -89,3 +89,16 @@ Server-Side Change: Use heartbeats to detect client crashes and release locks af
 Server-Side Change: Add a version counter to ensure only the latest client with the lock can modify or release it.
 5. Server Crash and Recovery (Log-Structured File System)
 Server-Side Change: Log each lock acquisition, release, and waiting queue state. On restart, the server will replay the log to restore the state.
+
+1. Network Failure: Packet Loss (Retry Mechanism)
+    -> We have implemented retry mechanism on lock_acquire and lock_release , to ensure if the packet was lost on a retry it gets delivered to the server.
+    -> Lock_Acquire and Lock_Release:
+        We have added a retry of 5 seconds buffer before the client retry to check if it is able to acquire lock. 
+        We have added a retry buffer of 5+5 which gradually increase till 30 seconds, if the server is unavailable.
+2. Duplicate Request: 
+    -> We have implemented a unique_id for each client's each request. So that when client tries the retry mechanism, it does not bombard the server with same request.
+    -> We have ensured if the request_id to be unique and kept it in set at the server level, each time a request drops in we check if the client has already requested, if it has we simply check if the request if processed , if is processed we send success else we send failure and client tries to request again.
+3. Client Crashes:
+    -> When client crashes and if it holds a lock, we are making sure that server will automatically release the lock if client hearbeat that was last sent from the client was more the 30 seconds ago. 
+    -> This is done in the check_heartbeat function which runs in a seperate thread at the server side.
+

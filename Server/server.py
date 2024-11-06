@@ -33,7 +33,11 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
 
         with self.lock:
             if is_duplicate_request(request_id):
-                return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+                if self.current_lock_holder and self.current_lock_holder[0] == client_id:
+                    return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+                else:
+                    return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+
 
             # Record the request_id as processed
             mark_request_processed(request_id)
@@ -58,10 +62,11 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         request_id = request.request_id
 
         with self.lock:
-            if is_duplicate_request(request_id):
+            if is_duplicate_request(request_id) and self.current_lock_holder[0] != client_id and self.heartbeat_intervals.get(client_id) is None:
                 return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
-            if self.current_lock_holder != client_id:
-                return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+            
+            # if self.current_lock_holder[0] != client_id:
+            #     return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
 
 
             mark_request_processed(request_id)
@@ -94,22 +99,21 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
             current_time = time.time()
             
             with self.lock:
-                log_event(f"Heartbeat intervals: {self.heartbeat_intervals}")
-
-                if self.current_lock_holder:
-                    lock_holder_id = self.current_lock_holder[0]
-                    last_heartbeat = self.heartbeat_intervals.get(lock_holder_id, 0)
+                #Crucial when the server restart
+                # if self.current_lock_holder:
+                #     lock_holder_id = self.current_lock_holder[0]
+                #     last_heartbeat = self.heartbeat_intervals.get(lock_holder_id, 0)
                     
-                    if current_time - last_heartbeat >= 5:
-                        self.current_lock_holder = None
-                        log_event(f"Lock released due to timeout for client: {lock_holder_id}")
-
-                        if self.waiting_queue:
-                            next_client_id, _ = self.waiting_queue.popleft()
-                            self.current_version += 1
-                            self.current_lock_holder = (next_client_id, self.current_version)
-                            self.heartbeat_intervals[next_client_id] = time.time()
-                            log_event(f"Lock granted to next client in queue: {next_client_id}, version: {self.current_version}")
+                    # if current_time - last_heartbeat >= 10:
+                    #     self.current_lock_holder = None
+                    #     log_event(f"Lock released due to timeout for client: {lock_holder_id}")
+                    #     print(f"Lock released due to timeout for client: {lock_holder_id}")
+                    #     if self.waiting_queue:
+                    #         next_client_id, _ = self.waiting_queue.popleft()
+                    #         self.current_version += 1
+                    #         self.current_lock_holder = (next_client_id, self.current_version)
+                    #         self.heartbeat_intervals[next_client_id] = time.time()
+                    #         log_event(f"Lock granted to next client in queue: {next_client_id}, version: {self.current_version}")
 
                 # General timeout check
                 for client_id, last_heartbeat in list(self.heartbeat_intervals.items()):
@@ -117,6 +121,7 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
                         if self.current_lock_holder and self.current_lock_holder[0] == client_id:
                             self.current_lock_holder = None
                             log_event(f"Lock automatically released due to timeout for client: {client_id}")
+                            print(f"Lock automatically released due to timeout for client: {client_id}")
 
                             if self.waiting_queue:
                                 next_client_id, _ = self.waiting_queue.popleft()

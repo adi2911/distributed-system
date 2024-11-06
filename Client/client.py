@@ -24,34 +24,35 @@ class Client:
         print(f"Assigned client with id: {self.client_id}")
 
     def RPC_lock_acquire(self):
-        retry_interval = 2
+        retry_interval = 5
+        request_id = self.generate_request_id()
         while True:
             try:
-                request_id = self.generate_request_id()
                 response = self.stub.lock_acquire(lock_pb2.lock_args(
                     client_id=self.client_id,
                     request_id=request_id
                 ))
                 if response.status == lock_pb2.Status.SUCCESS:
                     print(f"Lock has been acquired by client: {self.client_id}")
+
                     # Start the heartbeat thread
                     self.heartbeat_thread = threading.Thread(target=self.send_heartbeats, daemon=True)
                     self.heartbeat_thread.start()
                     break
                 else:
-                    print(f"Lock currently held by another client. Client {self.client_id} is waiting in queue.")
+                    print(f"Client {self.client_id} is waiting in queue.")
                     time.sleep(retry_interval)
 
             except grpc.RpcError:
                 print(f"Server is unavailable. Retrying in {retry_interval} seconds...")
                 time.sleep(retry_interval)
-                retry_interval = min(retry_interval * 2, 30)
+                retry_interval = min(retry_interval + 5, 30)
 
     def RPC_lock_release(self):
-        retry_interval = 2  # Initial retry interval
+        retry_interval = 5  # Initial retry interval
+        request_id = self.generate_request_id()
         while True:
             try:
-                request_id = self.generate_request_id()
                 response = self.stub.lock_release(lock_pb2.lock_args(
                     client_id=self.client_id,
                     request_id=request_id
@@ -70,7 +71,7 @@ class Client:
             except grpc.RpcError:
                 print(f"Error releasing lock: Server may be unavailable. Retrying in {retry_interval} seconds...")
                 time.sleep(retry_interval)
-                retry_interval = min(retry_interval * 2, 30)  # Exponential backoff with a max wait time
+                retry_interval = min(retry_interval + 5, 30)  # Exponential backoff with a max wait time
 
     def send_heartbeats(self):
         while not self.stop_heartbeat:
