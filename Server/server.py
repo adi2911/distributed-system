@@ -54,7 +54,26 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
                 return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
     
     def append_file(self, request, context):
-        pass
+        client_id = request.client_id
+        file_name = request.file_name
+        data_to_append = request.data
+
+        with self.lock:
+            # Check if the client currently holds the lock
+            if self.current_lock_holder != client_id:
+                print(f"Client {client_id} attempted to append to {file_name} without holding the lock.")
+                return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+            
+            try:
+                # Append the data to the specified file
+                with open(file_name, 'a') as file:
+                    file.write(data_to_append + '\n')
+                print(f"Data appended to {file_name} by client {client_id}")
+                return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+
+            except FileNotFoundError:
+                print(f"File {file_name} not found for client {client_id}")
+                return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
     
     def close(self, request, context):
         pass
