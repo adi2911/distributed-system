@@ -27,6 +27,7 @@ message file_args {
     string filename = 1;
     bytes content = 2;
     int32 client_id = 3;
+    int32 request_id=4
 }
 
 // Field to hold an int, used for simple initialization requests
@@ -46,4 +47,5 @@ service LockService {
     rpc file_append(file_args) returns (Response);
     rpc client_close(Int) returns (Int);
     rpc heartbeat(Heartbeat) returns (Response);
+    rpc getCurrent_lock_holder(current_lock_holder) returns (Response);
 }
