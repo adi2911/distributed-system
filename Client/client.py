@@ -83,7 +83,30 @@ class Client:
                 break
 
     def append_file(self, filename, content):
-        pass
+        retry_interval = 5  # Initial retry interval
+        request_id = self.generate_request_id()
+        while True:
+                try:
+                   lock_holder_response = self.stub.getCurrent_lock_holder(lock_pb2.Request())
+                   if self.client_id==lock_holder_response[0]:  
+                            response=self.stub.append_file(lock_pb2.file_args(filename=filename,content=content,client_id=self.client_id,request_id=request_id))
+                            if response.status== lock_pb2.Status.SUCCESS:
+                              print(f"File has been appended by client {self.client_id} ")
+                            elif response.status== lock_pb2.Status.DUPLICATE_ERROR:
+                              print("Your query is being processed.")
+                              time.sleep(retry_interval)
+                              retry_interval = min(retry_interval + 2, 30)
+                            else:
+                              print("Failed to append file.")
+                              break
+                   else:
+                        client.RPC_lock_acquire()
+                except grpc.RpcError:
+                            print("Failed to connect to server: Server may be unavailable.")
+                            break
+                    
+
+
 
     def RPC_close(self):
         pass
@@ -94,3 +117,4 @@ if __name__ == '__main__':
     client.RPC_lock_acquire()
     time.sleep(15)
     client.RPC_lock_release()
+

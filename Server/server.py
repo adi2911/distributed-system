@@ -131,6 +131,10 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
                                 log_event(f"Lock granted to next client in queue: {next_client_id}, version: {self.current_version}")
                         del self.heartbeat_intervals[client_id]
 
+    def getCurrent_lock_holder(self,request,context):
+        current_lock_holder=self.current_lock_holder
+        return lock_pb2.Response(current_lock_holder=current_lock_holder)
+
     def file_append(self, request, context):
             pass
 
