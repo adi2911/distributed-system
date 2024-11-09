@@ -16,6 +16,10 @@ enum Status {
     DUPLICATE_ERROR = 3;
 }
 
+message current_lock_holder{
+    int32 client_id=1;
+}
+
 // Response struct with an optional lock version
 message Response {
     Status status = 1;
@@ -25,9 +29,9 @@ message Response {
 // File append arguments
 message file_args {
     string filename = 1;
-    bytes content = 2;
+    string content = 2;
     int32 client_id = 3;
-    int32 request_id=4
+    string request_id=4;
 }
 
 // Field to hold an int, used for simple initialization requests
