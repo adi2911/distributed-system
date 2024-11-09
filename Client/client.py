@@ -39,6 +39,8 @@ class Client:
                     self.heartbeat_thread = threading.Thread(target=self.send_heartbeats, daemon=True)
                     self.heartbeat_thread.start()
                     break
+                elif response.status == lock_pb2.Status.DUPLICATE_ERROR:
+                    print("Your request is being processed.")
                 else:
                     print(f"Client {self.client_id} is waiting in queue.")
                     time.sleep(retry_interval)
@@ -64,6 +66,8 @@ class Client:
                     if hasattr(self, 'heartbeat_thread'):
                         self.heartbeat_thread.join()
                     break  # Exit the loop if lock release was successful
+                elif response.status == lock_pb2.Status.DUPLICATE_ERROR:
+                    print("Your request is being processed.")
                 else:
                     print(f"Lock cannot be released by client: {self.client_id} as it doesn't hold the lock")
                     break  # Exit if lock release failed for other reasons
