@@ -13,6 +13,7 @@ enum Status {
     SUCCESS = 0;
     FILE_ERROR = 1;
     TIMEOUT_ERROR = 2;  // New status for heartbeat timeout scenarios
+    DUPLICATE_ERROR = 3;
 }
 
 // Response struct with an optional lock version
