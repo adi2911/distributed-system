@@ -38,7 +38,6 @@ class Client:
                     # Start the heartbeat thread
                     self.heartbeat_thread = threading.Thread(target=self.send_heartbeats, daemon=True)
                     self.heartbeat_thread.start()
-                    return True
                     break
                 elif response.status == lock_pb2.Status.DUPLICATE_ERROR:
                     print("Your request is being processed.")
@@ -91,25 +90,24 @@ class Client:
         retry_interval = 5  # Initial retry interval
         request_id = self.generate_request_id()
         while True:
-            try:
-                lock_holder_response = self.stub.getCurrent_lock_holder(lock_pb2.current_lock_holder(client_id = self.client_id))    
-                if lock_holder_response.status == lock_pb2.Status.SUCCESS:
-                        response=self.stub.append_file(lock_pb2.file_args(filename=filename,content=content.encode("utf-8"),client_id=self.client_id,request_id=request_id))
-                        if response.status== lock_pb2.Status.SUCCESS:
-                            print(f"File has been appended by client {self.client_id} ")
-                        elif response.status== lock_pb2.Status.DUPLICATE_ERROR:
-                            print("Your query is being processed.")
-                            time.sleep(retry_interval)
-                            retry_interval = min(retry_interval + 2, 30)
-                        else:
-                            print("Failed to append file.")
+                try:
+                   lock_holder_response = self.stub.getCurrent_lock_holder(lock_pb2.Request())
+                   if self.client_id==lock_holder_response[0]:  
+                            response=self.stub.append_file(lock_pb2.file_args(filename=filename,content=content,client_id=self.client_id,request_id=request_id))
+                            if response.status== lock_pb2.Status.SUCCESS:
+                              print(f"File has been appended by client {self.client_id} ")
+                            elif response.status== lock_pb2.Status.DUPLICATE_ERROR:
+                              print("Your query is being processed.")
+                              time.sleep(retry_interval)
+                              retry_interval = min(retry_interval + 2, 30)
+                            else:
+                              print("Failed to append file.")
+                              break
+                   else:
+                        client.RPC_lock_acquire()
+                except grpc.RpcError:
+                            print("Failed to connect to server: Server may be unavailable.")
                             break
-                else:
-                    self.RPC_lock_acquire()
-            except grpc.RpcError:
-                    print(f"{grpc.RpcError}")
-                    print("Failed to connect to server: Server may be unavailable.")
-                    break
                     
 
 
@@ -118,19 +116,9 @@ class Client:
         pass
 
 if __name__ == '__main__':
-    '''client = Client()
+    client = Client()
     client.RPC_init()
     client.RPC_lock_acquire()
     time.sleep(15)
-    client.RPC_lock_release()'''
-    
-    client = Client()
-    client.RPC_init()
-    is_lock_acquired = client.RPC_lock_acquire()
-    time.sleep(10)
-    if is_lock_acquired:
-        client.append_file('file_0.txt', 'Client 2 data')
-    time.sleep(50)
-    
-
+    client.RPC_lock_release()
 
