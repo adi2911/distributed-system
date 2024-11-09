@@ -3,6 +3,8 @@ import uuid
 import json
 import time
 from Proto import lock_pb2
+import socket
+
 
 # Define the log file path
 LOG_FILE = "server_state_log.json"
@@ -62,3 +64,10 @@ def mark_request_processed(request_id):
     if not hasattr(is_duplicate_request, "processed_requests"):
         is_duplicate_request.processed_requests = set()
     is_duplicate_request.processed_requests.add(request_id)
+
+def is_port_available(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(1)  # Set a short timeout for the check
+        return s.connect_ex(('localhost', port)) != 0  # Returns True if port is available
+
+
