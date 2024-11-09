@@ -25,11 +25,9 @@ def load_server_state(server):
 
             # Restore server state based on each logged event
             if event.startswith("Client initialized"):
-                # Example: "Client initialized with client_id: X"
                 client_id = int(event.split(": ")[1])
                 server.next_client_id = max(server.next_client_id, client_id + 1)
             elif event.startswith("Lock acquired"):
-                # Example: "Lock acquired by client: X, version: Y"
                 parts = event.split(", ")
                 client_id_part = parts[0]
                 version_part = parts[1]
@@ -38,15 +36,12 @@ def load_server_state(server):
                 server.current_lock_holder = (client_id, version)
                 server.current_version = version
             elif event.startswith("Lock released"):
-                # Lock has been released, so set current_lock_holder to None
                 server.current_lock_holder = None
             elif event.startswith("Client added to waiting queue"):
-                # Example: "Client added to waiting queue: X"
                 client_id = int(event.split(": ")[1])
                 if client_id not in [c[0] for c in server.waiting_queue]:
                     server.waiting_queue.append((client_id, None))  # 'None' for peer
             elif event.startswith("Lock granted to next client in queue"):
-                # Example: "Lock granted to next client in queue: X, version: Y"
                 parts = event.split(", ")
                 client_id_part = parts[0]
                 version_part = parts[1]

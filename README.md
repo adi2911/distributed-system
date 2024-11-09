@@ -101,4 +101,16 @@ Server-Side Change: Log each lock acquisition, release, and waiting queue state.
 3. Client Crashes:
     -> When client crashes and if it holds a lock, we are making sure that server will automatically release the lock if client hearbeat that was last sent from the client was more the 30 seconds ago. 
     -> This is done in the check_heartbeat function which runs in a seperate thread at the server side.
+4. Lock Holder's Crash Recovery:
+
+5. Server Failure:
+    
+
+
+
+## Availability
+
+    **Load Balancing**: While all servers are running, only the primary handles client requests directly. Backups stay in sync by following the primary’s log and do not process client requests unless they become the primary.
+
+    **Heartbeat Mechanism**: Regular heartbeats are exchanged between the primary and backups to detect failures quickly. If a primary server fails, backups notice the absence of heartbeats and initiate a leader election to select a new primary.
 
