@@ -149,22 +149,6 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
             current_time = time.time()
             
             with self.lock:
-                #Crucial when the server restart
-                # if self.current_lock_holder:
-                #     lock_holder_id = self.current_lock_holder[0]
-                #     last_heartbeat = self.heartbeat_intervals.get(lock_holder_id, 0)
-                    
-                    # if current_time - last_heartbeat >= 10:
-                    #     self.current_lock_holder = None
-                    #     log_event(f"Lock released due to timeout for client: {lock_holder_id}")
-                    #     print(f"Lock released due to timeout for client: {lock_holder_id}")
-                    #     if self.waiting_queue:
-                    #         next_client_id, _ = self.waiting_queue.popleft()
-                    #         self.current_version += 1
-                    #         self.current_lock_holder = (next_client_id, self.current_version)
-                    #         self.heartbeat_intervals[next_client_id] = time.time()
-                    #         log_event(f"Lock granted to next client in queue: {next_client_id}, version: {self.current_version}")
-
                 # General timeout check
                 for client_id, last_heartbeat in list(self.heartbeat_intervals.items()):
                     if current_time - last_heartbeat >= 30:
