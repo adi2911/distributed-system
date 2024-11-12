@@ -37,7 +37,7 @@ def load_server_state(server):
                 version = int(version_part.split(": ")[1])
                 server.current_lock_holder = (client_id, version)
                 server.current_version = version
-            elif event.startswith("Lock released"):
+            elif event.startswith("Lock released") or event.startswith("Lock automatically released"):
                 server.current_lock_holder = None
             elif event.startswith("Client added to waiting queue"):
                 client_id = int(event.split(": ")[1])

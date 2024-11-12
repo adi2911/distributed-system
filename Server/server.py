@@ -7,7 +7,7 @@ from Proto import lock_pb2
 from Proto import lock_pb2_grpc
 from .utils import load_server_state, log_event, is_duplicate_request, mark_request_processed, is_port_available
 
-HEARTBEAT_INTERVAL = 2  # Heartbeat interval in seconds
+HEARTBEAT_INTERVAL = 5  # Heartbeat interval in seconds
 HEARTBEAT_TIMEOUT = 20  # Timeout threshold for failover
 PRIMARY_SERVER = "primary"
 BACKUP_SERVER = "backup"
@@ -39,11 +39,10 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         while True:
             time.sleep(HEARTBEAT_INTERVAL)
             for backup_address in self.backup_servers:
-                if backup_address is self.current_address:
+                if backup_address == self.current_address:
                     continue
                 try:
                     channel = grpc.insecure_channel(backup_address)
-                    print(f"channel: {channel}")
                     stub = lock_pb2_grpc.LockServiceStub(channel)
                     stub.heartbeat(lock_pb2.Heartbeat(client_id=0))
                     print(f"Heartbeat sent to backup at {backup_address}")
@@ -62,7 +61,7 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
     def heartbeat(self, request, context):
         """Handle heartbeat from primary or clients."""
         if self.role == BACKUP_SERVER:
-            print(f"Got it {request.client_id}")
+            print(f"primary server is active {self.current_address}")
             self.last_primary_heartbeat = time.time()
         else:
             client_id = request.client_id
@@ -74,6 +73,7 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         """Promote this backup server to primary."""
         self.role = PRIMARY_SERVER
         load_server_state(self)  # Load state from log file
+        threading.Thread(target=self.check_heartbeats, daemon=True).start()
         threading.Thread(target=self.send_heartbeats_to_backups, daemon=True).start()
         print("This server is now the primary")
 
@@ -175,6 +175,7 @@ def serve(role):
     if(role == PRIMARY_SERVER):
         server.add_insecure_port('[::]:50051')
         server.start()
+        threading.Thread(target=lock_service.check_heartbeats, daemon=True).start()
     else:
         flag = True
         ports = [50052, 50053, 50054]
@@ -183,6 +184,7 @@ def serve(role):
             if is_port_available(port):
                 flag = False
                 server.add_insecure_port(f'[::]:{port}')
+                lock_service.current_address = f"localhost:{port}"
                 server.start()
                 print(f"{role.capitalize()} server started at: {port}")
                 break
