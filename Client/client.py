@@ -3,6 +3,7 @@ from Proto import lock_pb2_grpc
 import grpc
 import time
 import threading
+from .utils import is_port_available
 
 SWITCH_SERVER_TIMEOUT = 25
 MAXIMUM_RETRIES = 60
@@ -12,12 +13,22 @@ class Client:
         self.client_id = None
         self.request_counter = 0
         self.stop_heartbeat = False
-        try:
-            self.channel = grpc.insecure_channel('localhost:50051')
-            self.stub = lock_pb2_grpc.LockServiceStub(self.channel)
-        except grpc.RpcError:
-            print(f"Server is not available on localhost: 50051, switching to different server")
-            self.switch_server(self)
+        ports_to_try = ["50051", "50052", "50053","50054"]  # Define additional ports to try
+        for port in ports_to_try:
+            if is_port_available(int(port)):
+                continue
+            try:
+                print(f"Attempting to connect to localhost:{port}...")
+                self.channel = grpc.insecure_channel(f'localhost:{port}')
+                self.stub = lock_pb2_grpc.LockServiceStub(self.channel)
+                print(f"Connected to server on port {port}")
+                return  # Exit if successful connection is established
+
+            except Exception as e:
+                print(f"Connection to localhost:{port} failed. Trying the next port.")
+        
+        # If loop completes without connecting
+        raise ConnectionError("Could not connect to any of the specified ports.")
 
 
     def generate_request_id(self):
@@ -167,6 +178,11 @@ if __name__ == '__main__':
     client = Client()
     client.RPC_init()
     client.RPC_lock_acquire()
-    time.sleep(15)
+    # file_path = "./Server/Files/file_0.txt"
+    # client.append_file(filename=file_path,content = 'A')
+    # client.append_file(filename=file_path,content = 'A')
+    # client.append_file(filename=file_path,content = 'A')
+    # client.append_file(filename=file_path,content = 'A')
+    # client.append_file(filename=file_path,content = 'A')
     client.RPC_lock_release()
 

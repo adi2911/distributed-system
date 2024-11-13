@@ -64,6 +64,11 @@ class LockServiceStub(object):
                 request_serializer=Proto_dot_lock__pb2.Heartbeat.SerializeToString,
                 response_deserializer=Proto_dot_lock__pb2.Response.FromString,
                 _registered_method=True)
+        self.getCurrent_lock_holder = channel.unary_unary(
+                '/lock_service.LockService/getCurrent_lock_holder',
+                request_serializer=Proto_dot_lock__pb2.current_lock_holder.SerializeToString,
+                response_deserializer=Proto_dot_lock__pb2.Response.FromString,
+                _registered_method=True)
         self.vote = channel.unary_unary(
                 '/lock_service.LockService/vote',
                 request_serializer=Proto_dot_lock__pb2.VoteRequest.SerializeToString,
@@ -110,6 +115,12 @@ class LockServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def getCurrent_lock_holder(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def vote(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -147,6 +158,11 @@ def add_LockServiceServicer_to_server(servicer, server):
             'heartbeat': grpc.unary_unary_rpc_method_handler(
                     servicer.heartbeat,
                     request_deserializer=Proto_dot_lock__pb2.Heartbeat.FromString,
+                    response_serializer=Proto_dot_lock__pb2.Response.SerializeToString,
+            ),
+            'getCurrent_lock_holder': grpc.unary_unary_rpc_method_handler(
+                    servicer.getCurrent_lock_holder,
+                    request_deserializer=Proto_dot_lock__pb2.current_lock_holder.FromString,
                     response_serializer=Proto_dot_lock__pb2.Response.SerializeToString,
             ),
             'vote': grpc.unary_unary_rpc_method_handler(
@@ -316,6 +332,33 @@ class LockService(object):
             target,
             '/lock_service.LockService/heartbeat',
             Proto_dot_lock__pb2.Heartbeat.SerializeToString,
+            Proto_dot_lock__pb2.Response.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def getCurrent_lock_holder(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/lock_service.LockService/getCurrent_lock_holder',
+            Proto_dot_lock__pb2.current_lock_holder.SerializeToString,
             Proto_dot_lock__pb2.Response.FromString,
             options,
             channel_credentials,
