@@ -65,17 +65,20 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         # Request votes from peers
         for peer in self.peers:
             if peer != self.server_id and not is_port_available(int(peer)):
+                print(f"I was called for {peer}")
                 threading.Thread(target=self.request_vote, args=(peer,), daemon=True).start()
-            if not is_port_available(int(peer)):
+            if is_port_available(int(peer)):
+                print(f"I was called for {peer}")
                 self.votes_received+=1
 
+        print(f"I was called for {self.votes_received}")
+
         # Election timeout to check if majority vote is achieved
-        election_timeout = time.time() + 3
-        while time.time() < election_timeout:
-            if self.votes_received >= (len(self.peers) + 1) // 2 + 1:
-                self.become_primary()
-                return
-            time.sleep(0.1)
+        time.sleep(0.1)
+        if self.votes_received >= len(self.peers):
+            self.become_primary()
+            return
+
         
         # If not elected, revert to follower
         self.role = BACKUP_SERVER

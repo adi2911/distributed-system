@@ -4,13 +4,21 @@ import grpc
 import time
 import threading
 
+SWITCH_SERVER_TIMEOUT = 25
+MAXIMUM_RETRIES = 60
+
 class Client:
     def __init__(self):
-        self.channel = grpc.insecure_channel('localhost:50051')
-        self.stub = lock_pb2_grpc.LockServiceStub(self.channel)
         self.client_id = None
         self.request_counter = 0
         self.stop_heartbeat = False
+        try:
+            self.channel = grpc.insecure_channel('localhost:50051')
+            self.stub = lock_pb2_grpc.LockServiceStub(self.channel)
+        except grpc.RpcError:
+            print(f"Server is not available on localhost: 50051, switching to different server")
+            self.switch_server(self)
+
 
     def generate_request_id(self):
         self.request_counter += 1
@@ -25,6 +33,7 @@ class Client:
 
     def RPC_lock_acquire(self):
         retry_interval = 5
+        timeout=5
         request_id = self.generate_request_id()
         # Start the heartbeat thread
         self.heartbeat_thread = threading.Thread(target=self.send_heartbeats, daemon=True)
@@ -35,17 +44,25 @@ class Client:
                     client_id=self.client_id,
                     request_id=request_id
                 ))
+                timeout = 5
+                retry_interval = 5
                 if response.status == lock_pb2.Status.SUCCESS:
                     print(f"Lock has been acquired by client: {self.client_id}")
                     break
                 else:
                     print(f"Client {self.client_id} is waiting in queue.")
                     time.sleep(retry_interval)
+                
 
             except grpc.RpcError:
                 print(f"Server is unavailable. Retrying in {retry_interval} seconds...")
+                if timeout >= SWITCH_SERVER_TIMEOUT:
+                    print(f"Maximum retries reached, switching to different server")
+                    self.switch_server()
+                    continue
                 time.sleep(retry_interval)
-                retry_interval = min(retry_interval + 5, 30)
+                timeout +=5
+                retry_interval = min(retry_interval + 2, 20)
 
     def RPC_lock_release(self):
         retry_interval = 5  # Initial retry interval
@@ -62,7 +79,7 @@ class Client:
                     self.stop_heartbeat = True
                     if hasattr(self, 'heartbeat_thread'):
                         self.heartbeat_thread.join()
-                    break  # Exit the loop if lock release was successful
+                    break  
                 else:
                     print(f"Lock cannot be released by client: {self.client_id} as it doesn't hold the lock")
                     break  # Exit if lock release failed for other reasons
@@ -80,6 +97,30 @@ class Client:
             except grpc.RpcError:
                 print("Failed to send heartbeat: Server may be unavailable.")
                 break
+
+    def switch_server(self):
+        #trying to connect to one of the backup sever
+        servers = ['localhost: 50052','localhost: 50053','localhost: 50054','localhost: 50051']
+        retries = 0
+        flag = True
+        while True:
+            if retries >= MAXIMUM_RETRIES:
+                print(f"No server is available")
+            for server in servers:
+                try:
+                    self.channel = grpc.insecure_channel(server)
+                    self.stub = lock_pb2_grpc.LockServiceStub(self.channel)
+                    flag = False
+                    break
+                except grpc.RpcError:
+                    print(f"Unable to connect to server at {server}, trying next server")
+            if flag:
+                retries=retries+4
+                print("No server available, trying again")
+                continue
+            print(f"Connection successful with new server")
+            break
+
 
     def append_file(self, filename, content):
         pass
