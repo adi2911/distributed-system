@@ -43,6 +43,8 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         """Initiate an election process in a FIFO order to become the primary server."""
         position = self.peers.index(self.server_id)
         delay = position
+        
+        #Ensuring if the previous server ports are down, take the current server port has highest priority that is without any delay
         for i in range(0,position):
             if is_port_available(int(peers[i])):
                 delay = delay-1
