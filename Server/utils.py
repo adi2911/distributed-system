@@ -1,8 +1,8 @@
 import os
-import uuid
 import json
 import time
-from Proto import lock_pb2
+import socket
+
 
 # Define the log file path
 LOG_FILE = "server_state_log.json"
@@ -25,35 +25,28 @@ def load_server_state(server):
 
             # Restore server state based on each logged event
             if event.startswith("Client initialized"):
-                # Example: "Client initialized with client_id: X"
                 client_id = int(event.split(": ")[1])
                 server.next_client_id = max(server.next_client_id, client_id + 1)
             elif event.startswith("Lock acquired"):
-                # Example: "Lock acquired by client: X, version: Y"
-                parts = event.split(", ")
-                client_id_part = parts[0]
-                version_part = parts[1]
-                client_id = int(client_id_part.split(": ")[1])
-                version = int(version_part.split(": ")[1])
-                server.current_lock_holder = (client_id, version)
-                server.current_version = version
-            elif event.startswith("Lock released"):
-                # Lock has been released, so set current_lock_holder to None
+                client_id_part = event.split(": ")[1]         
+                client_id = int(client_id_part)
+                server.current_lock_holder = client_id
+            elif event.startswith("Lock released") or event.startswith("Lock automatically released"):
                 server.current_lock_holder = None
             elif event.startswith("Client added to waiting queue"):
-                # Example: "Client added to waiting queue: X"
                 client_id = int(event.split(": ")[1])
                 if client_id not in [c[0] for c in server.waiting_queue]:
                     server.waiting_queue.append((client_id, None))  # 'None' for peer
             elif event.startswith("Lock granted to next client in queue"):
-                # Example: "Lock granted to next client in queue: X, version: Y"
-                parts = event.split(", ")
-                client_id_part = parts[0]
-                version_part = parts[1]
-                client_id = int(client_id_part.split(": ")[1])
-                version = int(version_part.split(": ")[1])
-                server.current_lock_holder = (client_id, version)
-                server.current_version = version
+                parts = event.split(": ")
+                client_id_part = parts[1]
+                client_id = int(client_id_part)
+                server.current_lock_holder = client_id
+            # elif event.startswith("logged heartbeat"):
+            #     parts=event.split(", ")
+            #     client_id = int(parts[0].split(" : ")[1])
+            #     heartbeat_interval = float(parts[1])
+            #     server.heartbeat_intervals[client_id] = heartbeat_interval
 
 def is_duplicate_request(request_id):
     """Check if the request ID has been processed already."""
@@ -67,3 +60,8 @@ def mark_request_processed(request_id):
     if not hasattr(is_duplicate_request, "processed_requests"):
         is_duplicate_request.processed_requests = set()
     is_duplicate_request.processed_requests.add(request_id)
+
+def is_port_available(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(1)  # Set a short timeout for the check
+        return s.connect_ex(('localhost', port)) != 0  # Returns True if port is available

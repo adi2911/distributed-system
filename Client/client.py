@@ -91,11 +91,12 @@ class Client:
         request_id = self.generate_request_id()
         while True:
                 try:
-                   lock_holder_response = self.stub.getCurrent_lock_holder(lock_pb2.Request())
-                   if self.client_id==lock_holder_response[0]:  
-                            response=self.stub.append_file(lock_pb2.file_args(filename=filename,content=content,client_id=self.client_id,request_id=request_id))
+                    lock_holder_response = self.stub.getCurrent_lock_holder(lock_pb2.current_lock_holder(client_id=self.client_id))
+                    if self.client_id==lock_holder_response.current_lock_holder.client_id:
+                            response=self.stub.file_append(lock_pb2.file_args(filename=filename,content=content.encode(),client_id=self.client_id,request_id=request_id))
                             if response.status== lock_pb2.Status.SUCCESS:
                               print(f"File has been appended by client {self.client_id} ")
+                              break
                             elif response.status== lock_pb2.Status.DUPLICATE_ERROR:
                               print("Your query is being processed.")
                               time.sleep(retry_interval)
@@ -103,11 +104,14 @@ class Client:
                             else:
                               print("Failed to append file.")
                               break
-                   else:
+                    else:
                         client.RPC_lock_acquire()
-                except grpc.RpcError:
-                            print("Failed to connect to server: Server may be unavailable.")
-                            break
+                except grpc.RpcError as e:
+                    print(f"{grpc.RpcError}")
+                    print(f"gRPC error code: {e.code()}")
+                    print(f"gRPC error details: {e.details()}")
+                    print("Failed to connect to server: Server may be unavailable.")
+                    break
                     
 
 
@@ -116,9 +120,10 @@ class Client:
         pass
 
 if __name__ == '__main__':
+    base_directory = "Server/Files/"
     client = Client()
     client.RPC_init()
     client.RPC_lock_acquire()
-    time.sleep(15)
+    client.append_file(f"{base_directory}file_0.txt", "Client 1 was here.")
     client.RPC_lock_release()
 
