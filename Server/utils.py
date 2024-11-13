@@ -1,8 +1,6 @@
 import os
-import uuid
 import json
 import time
-from Proto import lock_pb2
 import socket
 
 
