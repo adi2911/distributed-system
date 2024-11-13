@@ -16,15 +16,6 @@ enum Status {
     DUPLICATE_ERROR = 3;
 }
 
-message VoteRequest {
-    string candidate_id = 1;
-    int32 term = 2;
-}
-
-message VoteResponse {
-    bool vote_granted = 1;
-}
-
 message current_lock_holder {
     int32 client_id = 1;
 }
