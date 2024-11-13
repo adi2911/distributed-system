@@ -30,13 +30,9 @@ def load_server_state(server):
                 client_id = int(event.split(": ")[1])
                 server.next_client_id = max(server.next_client_id, client_id + 1)
             elif event.startswith("Lock acquired"):
-                parts = event.split(", ")
-                client_id_part = parts[0]
-                version_part = parts[1]
-                client_id = int(client_id_part.split(": ")[1])
-                version = int(version_part.split(": ")[1])
-                server.current_lock_holder = (client_id, version)
-                server.current_version = version
+                client_id_part = event.split(": ")[1]         
+                client_id = int(client_id_part)
+                server.current_lock_holder = client_id
             elif event.startswith("Lock released") or event.startswith("Lock automatically released"):
                 server.current_lock_holder = None
             elif event.startswith("Client added to waiting queue"):
@@ -44,13 +40,15 @@ def load_server_state(server):
                 if client_id not in [c[0] for c in server.waiting_queue]:
                     server.waiting_queue.append((client_id, None))  # 'None' for peer
             elif event.startswith("Lock granted to next client in queue"):
-                parts = event.split(", ")
-                client_id_part = parts[0]
-                version_part = parts[1]
-                client_id = int(client_id_part.split(": ")[1])
-                version = int(version_part.split(": ")[1])
-                server.current_lock_holder = (client_id, version)
-                server.current_version = version
+                parts = event.split(": ")
+                client_id_part = parts[1]
+                client_id = int(client_id_part)
+                server.current_lock_holder = client_id
+            # elif event.startswith("logged heartbeat"):
+            #     parts=event.split(", ")
+            #     client_id = int(parts[0].split(" : ")[1])
+            #     heartbeat_interval = float(parts[1])
+            #     server.heartbeat_intervals[client_id] = heartbeat_interval
 
 def is_duplicate_request(request_id):
     """Check if the request ID has been processed already."""
@@ -69,5 +67,6 @@ def is_port_available(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(1)  # Set a short timeout for the check
         return s.connect_ex(('localhost', port)) != 0  # Returns True if port is available
+
 
 

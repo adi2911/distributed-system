@@ -26,6 +26,9 @@ class Client:
     def RPC_lock_acquire(self):
         retry_interval = 5
         request_id = self.generate_request_id()
+        # Start the heartbeat thread
+        self.heartbeat_thread = threading.Thread(target=self.send_heartbeats, daemon=True)
+        self.heartbeat_thread.start()
         while True:
             try:
                 response = self.stub.lock_acquire(lock_pb2.lock_args(
@@ -34,10 +37,6 @@ class Client:
                 ))
                 if response.status == lock_pb2.Status.SUCCESS:
                     print(f"Lock has been acquired by client: {self.client_id}")
-
-                    # Start the heartbeat thread
-                    self.heartbeat_thread = threading.Thread(target=self.send_heartbeats, daemon=True)
-                    self.heartbeat_thread.start()
                     break
                 else:
                     print(f"Client {self.client_id} is waiting in queue.")
@@ -71,7 +70,7 @@ class Client:
             except grpc.RpcError:
                 print(f"Error releasing lock: Server may be unavailable. Retrying in {retry_interval} seconds...")
                 time.sleep(retry_interval)
-                retry_interval = min(retry_interval + 5, 30)  # Exponential backoff with a max wait time
+                retry_interval = min(retry_interval + 2, 20)  # Exponential backoff with a max wait time
 
     def send_heartbeats(self):
         while not self.stop_heartbeat:
@@ -92,5 +91,5 @@ if __name__ == '__main__':
     client = Client()
     client.RPC_init()
     client.RPC_lock_acquire()
-    time.sleep(15)
+    time.sleep(50)
     client.RPC_lock_release()

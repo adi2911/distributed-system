@@ -38,6 +38,16 @@ message Heartbeat {
     int32 client_id = 1;
 }
 
+
+message VoteRequest {
+    string candidate_id = 1;
+    int32 term = 2;
+}
+
+message VoteResponse {
+    bool vote_granted = 1;
+}
+
 service LockService {
     rpc client_init(Int) returns (Int);
     rpc lock_acquire(lock_args) returns (Response);
@@ -45,4 +55,5 @@ service LockService {
     rpc file_append(file_args) returns (Response);
     rpc client_close(Int) returns (Int);
     rpc heartbeat(Heartbeat) returns (Response);
+    rpc vote(VoteRequest) returns (VoteResponse);
 }
