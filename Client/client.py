@@ -49,6 +49,8 @@ class Client:
                 if response.status == lock_pb2.Status.SUCCESS:
                     print(f"Lock has been acquired by client: {self.client_id}")
                     break
+                elif response.status == lock_pb2.Status.DUPLICATE_ERROR:
+                    print("Your request is being processed.")
                 else:
                     print(f"Client {self.client_id} is waiting in queue.")
                     time.sleep(retry_interval)
@@ -67,6 +69,7 @@ class Client:
     def RPC_lock_release(self):
         retry_interval = 5  # Initial retry interval
         request_id = self.generate_request_id()
+        timeout=5
         while True:
             try:
                 response = self.stub.lock_release(lock_pb2.lock_args(
@@ -79,15 +82,19 @@ class Client:
                     self.stop_heartbeat = True
                     if hasattr(self, 'heartbeat_thread'):
                         self.heartbeat_thread.join()
-                    break  
+                    break  # Exit the loop if lock release was successful
                 else:
                     print(f"Lock cannot be released by client: {self.client_id} as it doesn't hold the lock")
                     break  # Exit if lock release failed for other reasons
 
             except grpc.RpcError:
-                print(f"Error releasing lock: Server may be unavailable. Retrying in {retry_interval} seconds...")
+                print(f"Server is unavailable. Retrying in {retry_interval} seconds...")
+                if timeout >= SWITCH_SERVER_TIMEOUT:
+                    print(f"Maximum retries reached, switching to different server")
+                    self.switch_server()
+                    continue
                 time.sleep(retry_interval)
-                retry_interval = min(retry_interval + 2, 20)  # Exponential backoff with a max wait time
+                retry_interval = min(retry_interval + 1, 20)  # Exponential backoff with a max wait time  # Exponential backoff with a max wait time
 
     def send_heartbeats(self):
         while not self.stop_heartbeat:
@@ -123,14 +130,43 @@ class Client:
 
 
     def append_file(self, filename, content):
-        pass
+        retry_interval = 5  # Initial retry interval
+        request_id = self.generate_request_id()
+        while True:
+                try:
+                    lock_holder_response = self.stub.getCurrent_lock_holder(lock_pb2.current_lock_holder(client_id=self.client_id))
+                    if self.client_id==lock_holder_response.current_lock_holder.client_id:
+                            response=self.stub.file_append(lock_pb2.file_args(filename=filename,content=content.encode(),client_id=self.client_id,request_id=request_id))
+                            if response.status== lock_pb2.Status.SUCCESS:
+                              print(f"File has been appended by client {self.client_id} ")
+                              break
+                            elif response.status== lock_pb2.Status.DUPLICATE_ERROR:
+                              print("Your query is being processed.")
+                              time.sleep(retry_interval)
+                              retry_interval = min(retry_interval + 2, 30)
+                            else:
+                              print("Failed to append file.")
+                              break
+                    else:
+                        client.RPC_lock_acquire()
+                except grpc.RpcError as e:
+                    print(f"{grpc.RpcError}")
+                    print(f"gRPC error code: {e.code()}")
+                    print(f"gRPC error details: {e.details()}")
+                    print("Failed to connect to server: Server may be unavailable.")
+                    break
+                    
+
+
 
     def RPC_close(self):
         pass
 
 if __name__ == '__main__':
+    base_directory = "Server/Files/"
     client = Client()
     client.RPC_init()
     client.RPC_lock_acquire()
-    time.sleep(50)
+    time.sleep(15)
     client.RPC_lock_release()
+

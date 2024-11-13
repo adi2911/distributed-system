@@ -28,6 +28,7 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         self.voted_for = None  # Candidate this server voted for in the current term
         self.votes_received = 0  # Track received votes in the current election
         self.current_address = 'localhost:50051'
+        self.append_request_cache = {}
 
         # Load state on startup
         load_server_state(self)
@@ -245,10 +246,49 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
                                 self.heartbeat_intervals[next_client_id] = time.time()
                                 log_event(f"Lock granted to next client in queue: {next_client_id}")
                         del self.heartbeat_intervals[client_id]
+                        
+    def getCurrent_lock_holder(self,request,context):
+        holder = lock_pb2.current_lock_holder(client_id=self.current_lock_holder)
+        print(f"current lock holder: {self.current_lock_holder}")
+        return lock_pb2.Response(status=lock_pb2.Status.SUCCESS, current_lock_holder=holder)
 
     def file_append(self, request, context):
-            pass
+        client_id = request.client_id
+        request_id = request.request_id
+        filename = request.filename
+        content = request.content.decode()
+        is_error = False
+        
+        with self.lock:
+            if is_duplicate_request(request_id):
+                if request_id not in self.append_request_cache:
+                    if is_error:
+                        is_error=False
+                        return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)   
+                    return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+                else:
+                    return lock_pb2.Response(status=lock_pb2.Status.DUPLICATE_ERROR)
+        
+        mark_request_processed(request_id)
+        self.append_request_cache[request_id] = True
+        
+        try:
+            with open(filename, 'a') as file:
+                file.write(f" {content}")
+                self.cleanup_cache(request_id)
+                return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
 
+        except FileNotFoundError:
+                log_event(f"File {filename} not found for client {client_id}")
+                is_error=True
+                self.cleanup_cache(request_id)
+                return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+            
+    def cleanup_cache(self, request_id):
+        with self.lock:
+            if request_id in self.append_request_cache:
+                del self.append_request_cache[request_id]
+                
 def serve(server_id,peers,role):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     lock_service = LockServiceServicer(server_id, peers,role=role)
