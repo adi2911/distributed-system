@@ -30,6 +30,7 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         self.votes_received = 0  # Track received votes in the current election
         self.current_address = 'localhost:50051'
         self.append_request_cache = {}
+        self.active_backups_server = {}
 
         # Load state on startup
         load_server_state(self)
@@ -67,15 +68,11 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         print(f"Server {self.server_id} started election for term {self.current_term}")
 
         # Request votes from peers
-        for peer in self.peers:
-            if peer != self.server_id and not is_port_available(int(peer)):
-                print(f"I was called for {peer}")
-                threading.Thread(target=self.request_vote, args=(peer,), daemon=True).start()
-            if is_port_available(int(peer)):
-                print(f"I was called for {peer}")
+        for backup, address in self.active_backups_server.items():
+            if backup != self.server_id and not is_port_available(int(backup)):
+                threading.Thread(target=self.request_vote, args=(address,), daemon=True).start()
+            if is_port_available(int(backup)):
                 self.votes_received+=1
-
-        print(f"I was called for {self.votes_received}")
 
         # Election timeout to check if majority vote is achieved
         time.sleep(0.1)
@@ -91,10 +88,8 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
     def request_vote(self, peer):
         """Request a vote from a peer."""
         try:
-            channel = grpc.insecure_channel(f"localhost:{peer}")
-            stub = lock_pb2_grpc.LockServiceStub(channel)
             vote_request = lock_pb2.VoteRequest(candidate_id=self.server_id, term=self.current_term)
-            response = stub.vote(vote_request)
+            response = peer.vote(vote_request)
             
             if response.vote_granted:
                 self.votes_received += 1
@@ -132,9 +127,10 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
 
     def send_heartbeats_to_backups(self):
         """Primary server sends heartbeats to backups."""
+        backup_servers = ["localhost:50051","localhost:50052", "localhost:50053", "localhost:50054"]
         while self.role == PRIMARY_SERVER:
             time.sleep(HEARTBEAT_INTERVAL)
-            for backup_address in self.backup_servers:
+            for backup_address in backup_servers:
                 if backup_address == self.current_address:
                     continue
                 try:
@@ -142,8 +138,10 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
                     stub = lock_pb2_grpc.LockServiceStub(channel)
                     stub.heartbeat(lock_pb2.Heartbeat(client_id=0))
                     print(f"Heartbeat sent to backup at {backup_address}")
+                    self.active_backups_server[backup_address] = stub
                 except grpc.RpcError:
-                    pass
+                    if self.active_backups_server.get(backup_address) != None:
+                        self.active_backups_server.pop(backup_address)
                     print(f"Failed to send heartbeat to backup at {backup_address}")
 
     def log_heartbeat(self):
@@ -264,7 +262,7 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         try:
             # Perform the file append on the backup servers
             print(f"Appending to file \n : {filename+self.current_address[-1]}")
-            print(f"File {filename} appended with content: '{content}'")
+            print(f"Append for backup")
             with open(filename+f"_{self.current_address[-1]}.txt", 'a') as file:
                 file.write(f" {content}")
            
@@ -330,24 +328,22 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         
     def replicate_append_to_backups(self, filename, content):
         success = True
-        for server in self.backup_servers:
+        for server, server_stub in self.active_backups_server.items():
             if server == self.current_address:
                 continue
-            result = self.replicate_append_to_backup(server, filename, content)
+            result = self.replicate_append_to_backup(server,server_stub, filename, content)
             if not result:
                 success = False
         return success
 
-    def replicate_append_to_backup(self, server, filename, content):
+    def replicate_append_to_backup(self,server, server_stub, filename, content):
         try:
-            channel = grpc.insecure_channel(server)
-            stub = lock_pb2_grpc.LockServiceStub(channel)
-            response = stub.file_append_backup(lock_pb2.FileAppendBackup(filename=filename, content=content))
-            print(f"Replicated to: {server}")
-            return response.status == lock_pb2.Status.SUCCESS
+           response = server_stub.file_append_backup(lock_pb2.FileAppendBackup(filename=filename, content=content))
+           print(f"Replicated to: {server}")
+           return response.status == lock_pb2.Status.SUCCESS
         except grpc.RpcError as e:
             print(f"Failed to replicate to {e.details()}, as it is unavailable")
-            return True
+            return False
 
     def cleanup_cache(self, request_id):
         with self.lock:
