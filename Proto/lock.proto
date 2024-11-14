@@ -59,6 +59,10 @@ message FileAppendBackup{
    bytes content = 2;
 }
 
+message Log{
+    bytes event = 1;
+}
+
 service LockService {
     rpc client_init(Int) returns (Int);
     rpc lock_acquire(lock_args) returns (Response);
@@ -69,4 +73,5 @@ service LockService {
     rpc getCurrent_lock_holder(current_lock_holder) returns (Response);
     rpc vote(VoteRequest) returns (VoteResponse);
     rpc file_append_backup(FileAppendBackup) returns (Response);
+    rpc log_event_primary(Log) returns (Response);
 }

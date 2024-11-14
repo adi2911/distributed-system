@@ -33,7 +33,7 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         self.active_backups_server = {}
 
         # Load state on startup
-        load_server_state(self)
+        load_server_state(self,self.current_address[-1])
         
         # Start leader election or heartbeat checking based on role
         if self.role == PRIMARY_SERVER:
@@ -110,7 +110,7 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         """Promote this backup server to primary."""
         self.role = PRIMARY_SERVER
         print(f"Server {self.server_id} is now the primary.")
-        load_server_state(self)  
+        load_server_state(self,self.current_address[-1])  
         threading.Thread(target=self.send_heartbeats_to_backups, daemon=True).start()
         threading.Thread(target=self.check_heartbeats, daemon=True).start()
 
@@ -144,11 +144,6 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
                         self.active_backups_server.pop(backup_address)
                     print(f"Failed to send heartbeat to backup at {backup_address}")
 
-    def log_heartbeat(self):
-        while(True):
-            if self.current_lock_holder is not None and self.heartbeat_intervals is not None and self.heartbeat_intervals.get(self.current_lock_holder) is not None:
-                log_event(f"logged heartbeat for lock holder : {self.current_lock_holder}, {self.heartbeat_intervals[self.current_lock_holder]}")
-                time.sleep(5)
 
     def heartbeat(self, request, context):
         """Handle heartbeat from primary or clients."""
@@ -164,7 +159,9 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         with self.lock:
             client_id = self.next_client_id
             self.next_client_id += 1
-            log_event(f"Client initialized with client_id: {client_id}")
+            event = f"Client initialized with client_id: {client_id}"
+            log_event(event,self.current_address[-1])
+            self.log_event_to_backup(event)
         return lock_pb2.Int(rc=client_id)
     
     def lock_acquire(self, request, context):
@@ -189,12 +186,19 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
             if self.current_lock_holder is not None:
                 if (client_id, peer) not in self.waiting_queue:
                     self.waiting_queue.append((client_id, peer))
-                log_event(f"Client added to waiting queue : {client_id}")
+                event = f"Client added to waiting queue : {client_id}"
+                log_event(event,self.current_address[-1])
+                print("Sending logs to backup")
+                self.log_event_to_backup(event)
+ 
                 return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
 
             self.current_lock_holder = client_id
             self.heartbeat_intervals[client_id] = time.time()  # Track heartbeat time
-            log_event(f"Lock acquired by client: {client_id}")
+            event = f"Lock acquired by client: {client_id}"
+            log_event(event,self.current_address[-1])
+            self.log_event_to_backup(event)
+ 
             return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
         
     def lock_release(self, request, context):
@@ -210,13 +214,18 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
 
             if self.current_lock_holder and self.current_lock_holder == client_id:
                 self.current_lock_holder = None
-                log_event(f"Lock released by client: {client_id}")
+                event = f"Lock released by client: {client_id}"
+                log_event(event,self.current_address[-1])
+                self.log_event_to_backup(event)
 
                 if self.waiting_queue:
                     next_client_id, next_peer = self.waiting_queue.popleft()
                     self.current_lock_holder = next_client_id
                     self.heartbeat_intervals[next_client_id] = time.time()
-                    log_event(f"Lock granted to next client in queue: {next_client_id}")
+                    event = f"Lock granted to next client in queue: {next_client_id}"
+                    log_event(event,self.current_address[-1])
+                    self.log_event_to_backup(event)
+
 
                 return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
             else:
@@ -237,14 +246,20 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
                     if current_time - last_heartbeat >= 30:
                         if self.current_lock_holder and self.current_lock_holder == client_id:
                             self.current_lock_holder = None
-                            log_event(f"Lock automatically released due to timeout for client: {client_id}")
+                            event = f"Lock automatically released due to timeout for client: {client_id}"
+                            log_event(event,self.current_address[-1])
+                            self.log_event_to_backup(event)
+
                             print(f"Lock automatically released due to timeout for client: {client_id}")
 
                             if self.waiting_queue:
                                 next_client_id, _ = self.waiting_queue.popleft()
                                 self.current_lock_holder = next_client_id
                                 self.heartbeat_intervals[next_client_id] = time.time()
-                                log_event(f"Lock granted to next client in queue: {next_client_id}")
+                                event = f"Lock granted to next client in queue: {next_client_id}"
+                                log_event(event,self.current_address[-1])
+                                self.log_event_to_backup(event)
+
                         del self.heartbeat_intervals[client_id]
                         
     def getCurrent_lock_holder(self,request,context):
@@ -275,8 +290,6 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         except FileNotFoundError:
             is_error = True
             return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
-
-  
 
     def file_append(self, request, context):
         client_id = request.client_id
@@ -349,7 +362,29 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         with self.lock:
             if request_id in self.append_request_cache:
                 del self.append_request_cache[request_id]
-      
+
+    def log_event_to_backup(self, event):
+        for backup_address, backup_stub in self.active_backups_server.items():
+            if backup_address == self.current_address:
+                continue
+            try:
+                print("Sending logs to backup")
+                backup_stub.log_event_primary(lock_pb2.Log(event=event.encode()))
+                print(f"Log sent to backup at {backup_address}")
+            except grpc.RpcError as e:
+                pass
+                print(f"Failed to send logs to backup at {e.details()}")
+
+    def log_event_primary(self,request,context):
+        content = request.event.decode()
+        print("Received logs from backup")
+        try:
+            log_event(content,self.current_address[-1])  
+            return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+        except grpc.RpcError:
+            return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+        
+                
 def serve(server_id,peers,role):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     lock_service = LockServiceServicer(server_id, peers,role=role)
@@ -374,6 +409,7 @@ def serve(server_id,peers,role):
             print("No Port available")
 
     server.wait_for_termination()
+
 
 if __name__ == '__main__':
     # Set role as "primary" or "backup" here. Defaulting to primary for demonstration.

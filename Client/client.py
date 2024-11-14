@@ -105,8 +105,9 @@ class Client:
                     print(f"Maximum retries reached, switching to different server")
                     self.switch_server()
                     continue
+                timeout +=5
                 time.sleep(retry_interval)
-                retry_interval = min(retry_interval + 1, 20)  # Exponential backoff with a max wait time  # Exponential backoff with a max wait time
+                retry_interval = min(retry_interval + 2, 20)  # Exponential backoff with a max wait time  # Exponential backoff with a max wait time
 
     def send_heartbeats(self):
         while not self.stop_heartbeat:
@@ -179,12 +180,12 @@ if __name__ == '__main__':
     client = Client()
     client.RPC_init()
     client.RPC_lock_acquire()
-    time.sleep(10)
-    file_path = "./Server/Files/file_0"
-    client.append_file(filename=file_path,content = 'A')
-    client.append_file(filename=file_path,content = 'A')
-    client.append_file(filename=file_path,content = 'A')
-    client.append_file(filename=file_path,content = 'A')
-    client.append_file(filename=file_path,content = 'A')
+    time.sleep(35)
+    # file_path = "./Server/Files/file_0"
+    # client.append_file(filename=file_path,content = 'A')
+    # client.append_file(filename=file_path,content = 'A')
+    # client.append_file(filename=file_path,content = 'A')
+    # client.append_file(filename=file_path,content = 'A')
+    # client.append_file(filename=file_path,content = 'A')
     client.RPC_lock_release()
 

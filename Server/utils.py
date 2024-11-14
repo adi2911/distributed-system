@@ -5,16 +5,17 @@ import socket
 
 
 # Define the log file path
-LOG_FILE = "Server/server_1_log.json"
 
-def log_event(event):
+def log_event(event,server_id):
     """Append an event to the log file."""
+    LOG_FILE = f"Server/server_{server_id}_log.json"
     with open(LOG_FILE, "a") as f:
         timestamped_event = {"timestamp": time.time(), "event": event}
         f.write(json.dumps(timestamped_event) + "\n")
 
-def load_server_state(server):
+def load_server_state(server,server_id):
     """Load the server's state from the log file on restart."""
+    LOG_FILE = f"Server/server_{server_id}_log.json"
     if not os.path.exists(LOG_FILE):
         return  # No log file means no state to restore
 
