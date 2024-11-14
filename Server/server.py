@@ -2,6 +2,7 @@ from concurrent import futures
 import grpc
 import threading
 from collections import deque
+import asyncio
 import time
 from Proto import lock_pb2
 from Proto import lock_pb2_grpc
@@ -222,27 +223,7 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
                 return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
             else:
                 return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
-    
-    def replicate_append_to_backups(self, filename, content):
-        for backup_address in self.backup_servers:
-            if backup_address == self.current_address:
-                continue
-            try:
-                channel = grpc.insecure_channel(backup_address)
-                stub = lock_pb2_grpc.LockServiceStub(channel)
-                # Create a request object for file append
-                append_request = lock_pb2.file_args(
-                    filename=filename,
-                    content=content.encode(),
-                    client_id=self.current_lock_holder,
-                    request_id=f"{self.current_lock_holder}-{int(time.time())}"
-                )
-                response = stub.file_append(append_request)
-                if response.status != lock_pb2.Status.SUCCESS:
-                    log_event(f"Failed to replicate append to {backup_address}. Status: {response.status}")
-            except grpc.RpcError as e:
-                log_event(f"Error replicating append to backup {backup_address}: {str(e)}")
-
+     
     def check_heartbeats(self):
         """Periodically check heartbeats to release lock if the client is inactive."""
         while True:
@@ -273,14 +254,15 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         print(f"current lock holder: {self.current_lock_holder}")
         return lock_pb2.Response(status=lock_pb2.Status.SUCCESS, current_lock_holder=holder)
 
-    def file_append(self, request, context):
+
+    async def file_append(self, request, context):
         client_id = request.client_id
         request_id = request.request_id
         filename = request.filename
         content = request.content.decode()
         is_error = False
 
-        with self.lock:
+        async with self.lock:
             if is_duplicate_request(request_id):
                 if request_id not in self.append_request_cache:
                     if is_error:
@@ -296,31 +278,52 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         try:
             # Perform the file append on the primary server
             print(f"Appending to file \n : {filename+self.current_address[-1]}")
-            with open(filename+f"{self.current_address[-1]}", 'a') as file:
+            with open(filename+f"{self.current_address[-1]}.txt", 'a') as file:
                 file.write(f" {content}")
 
             # Log the append operation
-            log_event(f"File {filename} appended with content: '{content}' by client {client_id}")
+            print(f"File {filename} appended with content: '{content}' by client {client_id}")
 
-            # Replicate the append operation to backup servers
+            # Replicate the append operation to backup servers asynchronously
             if self.role == PRIMARY_SERVER:
-                self.replicate_append_to_backups(filename, content)
+                replication_success = await self.replicate_append_to_backups_async(filename, content)
+                if not replication_success:
+                    is_error = True
 
             # Cleanup request cache
             self.cleanup_cache(request_id)
-            return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+            
+            if is_error:
+                return lock_pb2.Response(status=lock_pb2.Status.REPLICATION_ERROR)
+            else:
+                return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
 
         except FileNotFoundError:
-            log_event(f"File {filename} not found for client {client_id}")
             is_error = True
             self.cleanup_cache(request_id)
             return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
-            
+
+    async def replicate_append_to_backups_async(self, filename, content):
+        # Assuming `backup_servers` is a list of backup server addresses or instances
+        tasks = [self.replicate_append_to_backup(server, filename, content) for server in self.backup_servers]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Check if any replication failed
+        return all(result == True for result in results)
+
+    async def replicate_append_to_backup(self, server, filename, content):
+        try:
+            # Simulate the network call or replication logic here
+            await server.append_to_file(filename, content)
+            return True
+        except Exception as e:
+            print(f"Replication to server {server} failed: {e}")
+            return False
+
     def cleanup_cache(self, request_id):
         with self.lock:
             if request_id in self.append_request_cache:
                 del self.append_request_cache[request_id]
-                
+      
 def serve(server_id,peers,role):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     lock_service = LockServiceServicer(server_id, peers,role=role)

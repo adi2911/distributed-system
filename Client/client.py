@@ -179,7 +179,7 @@ if __name__ == '__main__':
     client.RPC_init()
     client.RPC_lock_acquire()
     time.sleep(10)
-    file_path = "./Server/Files/file_0.txt"
+    file_path = "./Server/Files/file_0"
     client.append_file(filename=file_path,content = 'A')
     client.append_file(filename=file_path,content = 'A')
     client.append_file(filename=file_path,content = 'A')
