@@ -76,7 +76,7 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
 
         # Election timeout to check if majority vote is achieved
         time.sleep(0.1)
-        if self.votes_received >= len(self.peers):
+        if self.votes_received >= len(self.active_backups_server):
             self.become_primary()
             return
 
