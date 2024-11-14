@@ -222,7 +222,26 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
                 return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
             else:
                 return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
-
+    
+    def replicate_append_to_backups(self, filename, content):
+        for backup_address in self.backup_servers:
+            if backup_address == self.current_address:
+                continue
+            try:
+                channel = grpc.insecure_channel(backup_address)
+                stub = lock_pb2_grpc.LockServiceStub(channel)
+                # Create a request object for file append
+                append_request = lock_pb2.file_args(
+                    filename=filename,
+                    content=content.encode(),
+                    client_id=self.current_lock_holder,
+                    request_id=f"{self.current_lock_holder}-{int(time.time())}"
+                )
+                response = stub.file_append(append_request)
+                if response.status != lock_pb2.Status.SUCCESS:
+                    log_event(f"Failed to replicate append to {backup_address}. Status: {response.status}")
+            except grpc.RpcError as e:
+                log_event(f"Error replicating append to backup {backup_address}: {str(e)}")
 
     def check_heartbeats(self):
         """Periodically check heartbeats to release lock if the client is inactive."""
@@ -260,31 +279,42 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         filename = request.filename
         content = request.content.decode()
         is_error = False
-        
+
         with self.lock:
             if is_duplicate_request(request_id):
                 if request_id not in self.append_request_cache:
                     if is_error:
-                        is_error=False
+                        is_error = False
                         return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)   
                     return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
                 else:
                     return lock_pb2.Response(status=lock_pb2.Status.DUPLICATE_ERROR)
-        
+
         mark_request_processed(request_id)
         self.append_request_cache[request_id] = True
-        
+
         try:
-            with open(filename, 'a') as file:
+            # Perform the file append on the primary server
+            print(f"Appending to file \n : {filename+self.current_address[-1]}")
+            with open(filename+f"{self.current_address[-1]}", 'a') as file:
                 file.write(f" {content}")
-                self.cleanup_cache(request_id)
-                return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+
+            # Log the append operation
+            log_event(f"File {filename} appended with content: '{content}' by client {client_id}")
+
+            # Replicate the append operation to backup servers
+            if self.role == PRIMARY_SERVER:
+                self.replicate_append_to_backups(filename, content)
+
+            # Cleanup request cache
+            self.cleanup_cache(request_id)
+            return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
 
         except FileNotFoundError:
-                log_event(f"File {filename} not found for client {client_id}")
-                is_error=True
-                self.cleanup_cache(request_id)
-                return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+            log_event(f"File {filename} not found for client {client_id}")
+            is_error = True
+            self.cleanup_cache(request_id)
+            return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
             
     def cleanup_cache(self, request_id):
         with self.lock:

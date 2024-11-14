@@ -178,11 +178,12 @@ if __name__ == '__main__':
     client = Client()
     client.RPC_init()
     client.RPC_lock_acquire()
-    # file_path = "./Server/Files/file_0.txt"
-    # client.append_file(filename=file_path,content = 'A')
-    # client.append_file(filename=file_path,content = 'A')
-    # client.append_file(filename=file_path,content = 'A')
-    # client.append_file(filename=file_path,content = 'A')
-    # client.append_file(filename=file_path,content = 'A')
+    time.sleep(10)
+    file_path = "./Server/Files/file_0.txt"
+    client.append_file(filename=file_path,content = 'A')
+    client.append_file(filename=file_path,content = 'A')
+    client.append_file(filename=file_path,content = 'A')
+    client.append_file(filename=file_path,content = 'A')
+    client.append_file(filename=file_path,content = 'A')
     client.RPC_lock_release()
 
