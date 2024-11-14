@@ -2,6 +2,7 @@ from Proto import lock_pb2
 from Proto import lock_pb2_grpc
 import grpc
 import time
+import asyncio
 import threading
 from .utils import is_port_available
 

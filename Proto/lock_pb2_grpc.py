@@ -74,6 +74,11 @@ class LockServiceStub(object):
                 request_serializer=Proto_dot_lock__pb2.VoteRequest.SerializeToString,
                 response_deserializer=Proto_dot_lock__pb2.VoteResponse.FromString,
                 _registered_method=True)
+        self.file_append_backup = channel.unary_unary(
+                '/lock_service.LockService/file_append_backup',
+                request_serializer=Proto_dot_lock__pb2.FileAppendBackup.SerializeToString,
+                response_deserializer=Proto_dot_lock__pb2.Response.FromString,
+                _registered_method=True)
 
 
 class LockServiceServicer(object):
@@ -127,6 +132,12 @@ class LockServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def file_append_backup(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_LockServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -169,6 +180,11 @@ def add_LockServiceServicer_to_server(servicer, server):
                     servicer.vote,
                     request_deserializer=Proto_dot_lock__pb2.VoteRequest.FromString,
                     response_serializer=Proto_dot_lock__pb2.VoteResponse.SerializeToString,
+            ),
+            'file_append_backup': grpc.unary_unary_rpc_method_handler(
+                    servicer.file_append_backup,
+                    request_deserializer=Proto_dot_lock__pb2.FileAppendBackup.FromString,
+                    response_serializer=Proto_dot_lock__pb2.Response.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -387,6 +403,33 @@ class LockService(object):
             '/lock_service.LockService/vote',
             Proto_dot_lock__pb2.VoteRequest.SerializeToString,
             Proto_dot_lock__pb2.VoteResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def file_append_backup(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/lock_service.LockService/file_append_backup',
+            Proto_dot_lock__pb2.FileAppendBackup.SerializeToString,
+            Proto_dot_lock__pb2.Response.FromString,
             options,
             channel_credentials,
             insecure,

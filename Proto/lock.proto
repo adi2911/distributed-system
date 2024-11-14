@@ -54,6 +54,11 @@ message VoteResponse {
     bool vote_granted = 1;
 }
 
+message FileAppendBackup{
+   string filename = 1;
+   bytes content = 2;
+}
+
 service LockService {
     rpc client_init(Int) returns (Int);
     rpc lock_acquire(lock_args) returns (Response);
@@ -63,4 +68,5 @@ service LockService {
     rpc heartbeat(Heartbeat) returns (Response);
     rpc getCurrent_lock_holder(current_lock_holder) returns (Response);
     rpc vote(VoteRequest) returns (VoteResponse);
+    rpc file_append_backup(FileAppendBackup) returns (Response);
 }
