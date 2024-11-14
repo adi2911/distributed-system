@@ -5,7 +5,7 @@ import socket
 
 
 # Define the log file path
-LOG_FILE = "server_state_log.json"
+LOG_FILE = "./server_1_log.json"
 
 def log_event(event):
     """Append an event to the log file."""
