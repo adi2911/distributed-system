@@ -74,4 +74,6 @@ service LockService {
     rpc vote(VoteRequest) returns (VoteResponse);
     rpc file_append_backup(FileAppendBackup) returns (Response);
     rpc log_event_primary(Log) returns (Response);
+    rpc sync_log(Log) returns (Response);
+    rpc sync_file(FileAppendBackup) returns (Response);
 }

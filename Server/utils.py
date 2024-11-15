@@ -68,5 +68,19 @@ def is_port_available(port):
         return s.connect_ex(('localhost', port)) != 0  # Returns True if port is available
 
 
+def write_logs(content,server_id):
+    LOG_FILE = f"Server/server_{server_id}_log.json"
+    with open(LOG_FILE, "w") as f:
+        f.write(content)
+ 
+def get_log_content(server_id):
+    """Read all log entries for a specific server and return them as a single formatted string."""
+    LOG_FILE = f"Server/server_{server_id}_log.json"
+    log_entries = []
 
-
+    try:
+        with open(LOG_FILE, "r") as f:
+            return f.read()
+    except FileNotFoundError:
+        print(f"Log file for server {server_id} not found.")
+    

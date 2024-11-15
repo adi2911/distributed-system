@@ -1,4 +1,5 @@
 from concurrent import futures
+import os
 import grpc
 import threading
 from collections import deque
@@ -6,7 +7,7 @@ import asyncio
 import time
 from Proto import lock_pb2
 from Proto import lock_pb2_grpc
-from .utils import load_server_state, log_event, is_duplicate_request, mark_request_processed, is_port_available
+from .utils import load_server_state, log_event, is_duplicate_request, mark_request_processed, is_port_available,get_log_content,write_logs
 
 HEARTBEAT_INTERVAL = 5  # Heartbeat interval in seconds
 HEARTBEAT_TIMEOUT = 20  # Timeout threshold for failover
@@ -138,7 +139,11 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
                     stub = lock_pb2_grpc.LockServiceStub(channel)
                     stub.heartbeat(lock_pb2.Heartbeat(client_id=0))
                     print(f"Heartbeat sent to backup at {backup_address}")
-                    self.active_backups_server[backup_address] = stub
+                    if self.active_backups_server.get(backup_address) == None:
+                        self.active_backups_server[backup_address] = stub
+                        time.sleep(5)
+                        threading.Thread(target=self.sync_logs_with_backup, args=(backup_address, stub), daemon=True).start()
+                        threading.Thread(target=self.sync_backup_files, args=(backup_address, stub), daemon=True).start()
                 except grpc.RpcError:
                     if self.active_backups_server.get(backup_address) != None:
                         self.active_backups_server.pop(backup_address)
@@ -312,18 +317,22 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         self.append_request_cache[request_id] = True
 
         try:
-            # Perform the file append on the primary server
-            print(f"Appending to file \n : {filename+self.current_address[-1]}")
-            print(f"File {filename} appended with content: '{content}' by client {client_id}")
-            with open(filename+f"_{self.current_address[-1]}.txt", 'a') as file:
-                file.write(f" {content}")
-
             # Replicate the append operation to backup servers synchronously
             if self.role == PRIMARY_SERVER:
                 replication_success = self.replicate_append_to_backups(filename, request.content)
-                print(f"REPLICATION SUCCESS>>>>> {replication_success}")
                 if not replication_success:
                     is_error = True
+            
+            if(is_error):
+                print("Failed to backup data")
+
+            # Perform the file append on the primary server
+            print(f"Appending to file \n : {filename+self.current_address[-1]}")
+            with open(filename+f"_{self.current_address[-1]}.txt", 'a') as file:
+                file.write(f" {content}")
+
+            print(f"File {filename} appended with content: '{content}' by client {client_id}")
+
 
             # Cleanup request cache
             self.cleanup_cache(request_id)
@@ -358,6 +367,41 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
             print(f"Failed to replicate to {e.details()}, as it is unavailable")
             return False
 
+    def sync_each_file(self, server_stub, filename, content):
+        """Send a single file's content to the backup server."""
+        try:
+            response = server_stub.sync_file(lock_pb2.FileAppendBackup(filename=filename, content=content))
+            if response.status == lock_pb2.Status.SUCCESS:
+                print(f"Successfully synced {filename} with backup.")
+            else:
+                print(f"Failed to sync {filename} with backup.")
+        except grpc.RpcError as e:
+            print(f"Error syncing {filename} with backup: {e.details()}")
+
+
+    def sync_file(self, request, context):
+        filename = request.filename +"_"+ self.current_address[-1]+".txt"
+        content = request.content.decode()
+        try:
+            with open(filename,"w") as sync_file:
+                sync_file.write(content)
+                sync_file.close()
+                return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+            print(f"File {filename} synced")
+        except grpc.RpcError:
+            print(f"Failed to synced {filename}")
+            return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+
+    def sync_backup_files(self, backup_server, server_stub):
+        """Sync all files (file_0 to file_99) with the backup server."""
+        for i in range(100):
+            filename = f"Server/Files/file_{i}_{self.current_address[-1]}.txt"
+            if os.path.exists(filename):
+                with open(filename, "rb") as file:
+                    content = file.read()
+                    print(f"Syncing file {filename} with {backup_server}")
+                    self.sync_each_file(server_stub, filename[:-6], content)
+
     def cleanup_cache(self, request_id):
         with self.lock:
             if request_id in self.append_request_cache:
@@ -368,12 +412,12 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
             if backup_address == self.current_address:
                 continue
             try:
-                print("Sending logs to backup")
                 backup_stub.log_event_primary(lock_pb2.Log(event=event.encode()))
                 print(f"Log sent to backup at {backup_address}")
             except grpc.RpcError as e:
-                pass
                 print(f"Failed to send logs to backup at {e.details()}")
+                return False
+
 
     def log_event_primary(self,request,context):
         content = request.event.decode()
@@ -383,6 +427,25 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
             return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
         except grpc.RpcError:
             return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+    
+    def sync_log(self,request,context):
+        content = request.event.decode()
+        print("Received logs from backup")
+        try:
+            write_logs(content, self.current_address[-1])
+            return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+        except grpc.RpcError:
+            return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+        
+    def sync_logs_with_backup(self,backup_server,server_stub):
+        content = get_log_content(self.current_address[-1]).encode()
+        try:
+            server_stub.sync_log(lock_pb2.Log(event = content))
+            print(f"{backup_server} was synced up with primary")
+        except grpc.RpcError as e:
+            print(f"Fail to sync {e.details()} up with primary")
+            return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+
         
                 
 def serve(server_id,peers,role):
