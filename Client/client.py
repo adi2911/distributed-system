@@ -5,6 +5,8 @@ import time
 import asyncio
 import threading
 from .utils import is_port_available
+import sys
+
 
 SWITCH_SERVER_TIMEOUT = 25
 MAXIMUM_RETRIES = 60
@@ -14,8 +16,17 @@ class Client:
         self.client_id = None
         self.request_counter = 0
         self.stop_heartbeat = False
-        ports_to_try = ["50051", "50052", "50053","50054"]  # Define additional ports to try
-        for port in ports_to_try:
+        self.ports_to_try = ["50051", "50052", "50053","50054"]  # Define additional ports to try
+ 
+
+    def generate_request_id(self):
+        self.request_counter += 1
+        return f"{self.client_id}-{self.request_counter}"
+
+    def RPC_init(self):
+        #Assuming no primary connection in starting
+        flag = True
+        for port in self.ports_to_try:
             if is_port_available(int(port)):
                 continue
             try:
@@ -23,22 +34,21 @@ class Client:
                 self.channel = grpc.insecure_channel(f'localhost:{port}')
                 self.stub = lock_pb2_grpc.LockServiceStub(self.channel)
                 print(f"Connected to server on port {port}")
-                return  # Exit if successful connection is established
+                request = lock_pb2.Int()
+                response = self.stub.client_init(request)
+
+                #If connected to primary successfully
+                if(response.rc != -1):
+                    flag = False
+                break
 
             except Exception as e:
+                flag = True
                 print(f"Connection to localhost:{port} failed. Trying the next port.")
         
-        # If loop completes without connecting
-        raise ConnectionError("Could not connect to any of the specified ports.")
+        if flag:
+            raise ConnectionError("Could not connect to any of the specified ports.")
 
-
-    def generate_request_id(self):
-        self.request_counter += 1
-        return f"{self.client_id}-{self.request_counter}"
-
-    def RPC_init(self):
-        request = lock_pb2.Int()
-        response = self.stub.client_init(request)
         print("Initialized connection with server:", response)
         self.client_id = response.rc
         print(f"Assigned client with id: {self.client_id}")
@@ -140,16 +150,22 @@ class Client:
                 continue
             print(f"Connection successful with new server")
             break
+        if flag :
+            print("No server available")
+            sys.exit()
 
 
     def append_file(self, filename, content):
         retry_interval = 5  # Initial retry interval
         request_id = self.generate_request_id()
+        timeout = 5
         while True:
                 try:
                     lock_holder_response = self.stub.getCurrent_lock_holder(lock_pb2.current_lock_holder(client_id=self.client_id))
                     if self.client_id==lock_holder_response.current_lock_holder.client_id:
                             response=self.stub.file_append(lock_pb2.file_args(filename=filename,content=content.encode(),client_id=self.client_id,request_id=request_id))
+                            timeout = 5
+                            retry_interval = 5
                             if response.status== lock_pb2.Status.SUCCESS:
                               print(f"File has been appended by client {self.client_id} ")
                               break
@@ -162,13 +178,14 @@ class Client:
                               break
                     else:
                         client.RPC_lock_acquire()
-                except grpc.RpcError as e:
-                    print(f"{grpc.RpcError}")
-                    print(f"gRPC error code: {e.code()}")
-                    print(f"gRPC error details: {e.details()}")
-                    print("Failed to connect to server: Server may be unavailable.")
-                    break
-                    
+                except grpc.RpcError:
+                    if timeout >= SWITCH_SERVER_TIMEOUT:
+                      print(f"Maximum retries reached, switching to different server")
+                      self.switch_server()
+                      continue
+                    time.sleep(retry_interval)
+                    timeout +=5
+                    retry_interval = min(retry_interval + 2, 20)                     
 
 
 
@@ -181,11 +198,11 @@ if __name__ == '__main__':
     client.RPC_init()
     client.RPC_lock_acquire()
     time.sleep(35)
-    # file_path = "./Server/Files/file_0"
-    # client.append_file(filename=file_path,content = 'A')
-    # client.append_file(filename=file_path,content = 'A')
-    # client.append_file(filename=file_path,content = 'A')
-    # client.append_file(filename=file_path,content = 'A')
-    # client.append_file(filename=file_path,content = 'A')
+    file_path = "./Server/Files/file_0"
+    client.append_file(filename=file_path,content = 'A')
+    client.append_file(filename=file_path,content = 'A')
+    client.append_file(filename=file_path,content = 'A')
+    client.append_file(filename=file_path,content = 'A')
+    client.append_file(filename=file_path,content = 'A')
     client.RPC_lock_release()
 

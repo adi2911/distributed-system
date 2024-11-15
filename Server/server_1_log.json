@@ -1,0 +1,5 @@
+{"timestamp": 1731630115.5359502, "event": "Client initialized with client_id: 1"}
+{"timestamp": 1731630115.536683, "event": "Lock acquired by client: 1"}
+{"timestamp": 1731630150.542635, "event": "Lock released by client: 1"}
+{"timestamp": 1731630356.6128042, "event": "Client initialized with client_id: 2"}
+{"timestamp": 1731630356.6144938, "event": "Lock acquired by client: 2"}

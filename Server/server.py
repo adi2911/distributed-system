@@ -162,6 +162,11 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
 
     def client_init(self, request, context):
         with self.lock:
+            if self.role != PRIMARY_SERVER:
+                print("Got client request, trying to become primary")
+                time.sleep(30)
+            if self.role != PRIMARY_SERVER:
+                return lock_pb2.Int(rc = -1)
             client_id = self.next_client_id
             self.next_client_id += 1
             event = f"Client initialized with client_id: {client_id}"
@@ -371,9 +376,7 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         """Send a single file's content to the backup server."""
         try:
             response = server_stub.sync_file(lock_pb2.FileAppendBackup(filename=filename, content=content))
-            if response.status == lock_pb2.Status.SUCCESS:
-                print(f"Successfully synced {filename} with backup.")
-            else:
+            if response.status != lock_pb2.Status.SUCCESS:
                 print(f"Failed to sync {filename} with backup.")
         except grpc.RpcError as e:
             print(f"Error syncing {filename} with backup: {e.details()}")
@@ -396,11 +399,12 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         """Sync all files (file_0 to file_99) with the backup server."""
         for i in range(100):
             filename = f"Server/Files/file_{i}_{self.current_address[-1]}.txt"
+            print(f"Syncing all files with {backup_server}")
             if os.path.exists(filename):
                 with open(filename, "rb") as file:
                     content = file.read()
-                    print(f"Syncing file {filename} with {backup_server}")
                     self.sync_each_file(server_stub, filename[:-6], content)
+            print(f"Sync successful for all files with {backup_server}")
 
     def cleanup_cache(self, request_id):
         with self.lock:
