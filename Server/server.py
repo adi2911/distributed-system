@@ -1,11 +1,13 @@
 from concurrent import futures
+import os
 import grpc
 import threading
 from collections import deque
+import asyncio
 import time
 from Proto import lock_pb2
 from Proto import lock_pb2_grpc
-from .utils import load_server_state, log_event, is_duplicate_request, mark_request_processed, is_port_available
+from .utils import load_server_state, log_event, is_duplicate_request, mark_request_processed, is_port_available,get_log_content,write_logs
 
 HEARTBEAT_INTERVAL = 5  # Heartbeat interval in seconds
 HEARTBEAT_TIMEOUT = 20  # Timeout threshold for failover
@@ -29,9 +31,10 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         self.votes_received = 0  # Track received votes in the current election
         self.current_address = 'localhost:50051'
         self.append_request_cache = {}
+        self.active_backups_server = {}
 
         # Load state on startup
-        load_server_state(self)
+        load_server_state(self,self.current_address[-1])
         
         # Start leader election or heartbeat checking based on role
         if self.role == PRIMARY_SERVER:
@@ -43,6 +46,8 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         """Initiate an election process in a FIFO order to become the primary server."""
         position = self.peers.index(self.server_id)
         delay = position
+        
+        #Ensuring if the previous server ports are down, take the current server port has highest priority that is without any delay
         for i in range(0,position):
             if is_port_available(int(peers[i])):
                 delay = delay-1
@@ -64,19 +69,15 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         print(f"Server {self.server_id} started election for term {self.current_term}")
 
         # Request votes from peers
-        for peer in self.peers:
-            if peer != self.server_id and not is_port_available(int(peer)):
-                print(f"I was called for {peer}")
-                threading.Thread(target=self.request_vote, args=(peer,), daemon=True).start()
-            if is_port_available(int(peer)):
-                print(f"I was called for {peer}")
+        for backup, address in self.active_backups_server.items():
+            if backup != self.server_id and not is_port_available(int(backup)):
+                threading.Thread(target=self.request_vote, args=(address,), daemon=True).start()
+            if is_port_available(int(backup)):
                 self.votes_received+=1
-
-        print(f"I was called for {self.votes_received}")
 
         # Election timeout to check if majority vote is achieved
         time.sleep(0.1)
-        if self.votes_received >= len(self.peers):
+        if self.votes_received >= len(self.active_backups_server):
             self.become_primary()
             return
 
@@ -88,10 +89,8 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
     def request_vote(self, peer):
         """Request a vote from a peer."""
         try:
-            channel = grpc.insecure_channel(f"localhost:{peer}")
-            stub = lock_pb2_grpc.LockServiceStub(channel)
             vote_request = lock_pb2.VoteRequest(candidate_id=self.server_id, term=self.current_term)
-            response = stub.vote(vote_request)
+            response = peer.vote(vote_request)
             
             if response.vote_granted:
                 self.votes_received += 1
@@ -112,7 +111,7 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         """Promote this backup server to primary."""
         self.role = PRIMARY_SERVER
         print(f"Server {self.server_id} is now the primary.")
-        load_server_state(self)  
+        load_server_state(self,self.current_address[-1])  
         threading.Thread(target=self.send_heartbeats_to_backups, daemon=True).start()
         threading.Thread(target=self.check_heartbeats, daemon=True).start()
 
@@ -129,9 +128,10 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
 
     def send_heartbeats_to_backups(self):
         """Primary server sends heartbeats to backups."""
+        backup_servers = ["localhost:50051","localhost:50052", "localhost:50053", "localhost:50054"]
         while self.role == PRIMARY_SERVER:
             time.sleep(HEARTBEAT_INTERVAL)
-            for backup_address in self.backup_servers:
+            for backup_address in backup_servers:
                 if backup_address == self.current_address:
                     continue
                 try:
@@ -139,15 +139,16 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
                     stub = lock_pb2_grpc.LockServiceStub(channel)
                     stub.heartbeat(lock_pb2.Heartbeat(client_id=0))
                     print(f"Heartbeat sent to backup at {backup_address}")
+                    if self.active_backups_server.get(backup_address) == None:
+                        self.active_backups_server[backup_address] = stub
+                        time.sleep(5)
+                        threading.Thread(target=self.sync_logs_with_backup, args=(backup_address, stub), daemon=True).start()
+                        threading.Thread(target=self.sync_backup_files, args=(backup_address, stub), daemon=True).start()
                 except grpc.RpcError:
-                    pass
+                    if self.active_backups_server.get(backup_address) != None:
+                        self.active_backups_server.pop(backup_address)
                     print(f"Failed to send heartbeat to backup at {backup_address}")
 
-    def log_heartbeat(self):
-        while(True):
-            if self.current_lock_holder is not None and self.heartbeat_intervals is not None and self.heartbeat_intervals.get(self.current_lock_holder) is not None:
-                log_event(f"logged heartbeat for lock holder : {self.current_lock_holder}, {self.heartbeat_intervals[self.current_lock_holder]}")
-                time.sleep(5)
 
     def heartbeat(self, request, context):
         """Handle heartbeat from primary or clients."""
@@ -161,9 +162,16 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
 
     def client_init(self, request, context):
         with self.lock:
+            if self.role != PRIMARY_SERVER:
+                print("Got client request, trying to become primary")
+                time.sleep(30)
+            if self.role != PRIMARY_SERVER:
+                return lock_pb2.Int(rc = -1)
             client_id = self.next_client_id
             self.next_client_id += 1
-            log_event(f"Client initialized with client_id: {client_id}")
+            event = f"Client initialized with client_id: {client_id}"
+            log_event(event,self.current_address[-1])
+            self.log_event_to_backup(event)
         return lock_pb2.Int(rc=client_id)
     
     def lock_acquire(self, request, context):
@@ -188,12 +196,19 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
             if self.current_lock_holder is not None:
                 if (client_id, peer) not in self.waiting_queue:
                     self.waiting_queue.append((client_id, peer))
-                log_event(f"Client added to waiting queue : {client_id}")
+                event = f"Client added to waiting queue : {client_id}"
+                log_event(event,self.current_address[-1])
+                print("Sending logs to backup")
+                self.log_event_to_backup(event)
+ 
                 return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
 
             self.current_lock_holder = client_id
             self.heartbeat_intervals[client_id] = time.time()  # Track heartbeat time
-            log_event(f"Lock acquired by client: {client_id}")
+            event = f"Lock acquired by client: {client_id}"
+            log_event(event,self.current_address[-1])
+            self.log_event_to_backup(event)
+ 
             return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
         
     def lock_release(self, request, context):
@@ -209,19 +224,23 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
 
             if self.current_lock_holder and self.current_lock_holder == client_id:
                 self.current_lock_holder = None
-                log_event(f"Lock released by client: {client_id}")
+                event = f"Lock released by client: {client_id}"
+                log_event(event,self.current_address[-1])
+                self.log_event_to_backup(event)
 
                 if self.waiting_queue:
                     next_client_id, next_peer = self.waiting_queue.popleft()
                     self.current_lock_holder = next_client_id
                     self.heartbeat_intervals[next_client_id] = time.time()
-                    log_event(f"Lock granted to next client in queue: {next_client_id}")
+                    event = f"Lock granted to next client in queue: {next_client_id}"
+                    log_event(event,self.current_address[-1])
+                    self.log_event_to_backup(event)
+
 
                 return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
             else:
                 return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
-
-
+     
     def check_heartbeats(self):
         """Periodically check heartbeats to release lock if the client is inactive."""
         while True:
@@ -237,14 +256,20 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
                     if current_time - last_heartbeat >= 30:
                         if self.current_lock_holder and self.current_lock_holder == client_id:
                             self.current_lock_holder = None
-                            log_event(f"Lock automatically released due to timeout for client: {client_id}")
+                            event = f"Lock automatically released due to timeout for client: {client_id}"
+                            log_event(event,self.current_address[-1])
+                            self.log_event_to_backup(event)
+
                             print(f"Lock automatically released due to timeout for client: {client_id}")
 
                             if self.waiting_queue:
                                 next_client_id, _ = self.waiting_queue.popleft()
                                 self.current_lock_holder = next_client_id
                                 self.heartbeat_intervals[next_client_id] = time.time()
-                                log_event(f"Lock granted to next client in queue: {next_client_id}")
+                                event = f"Lock granted to next client in queue: {next_client_id}"
+                                log_event(event,self.current_address[-1])
+                                self.log_event_to_backup(event)
+
                         del self.heartbeat_intervals[client_id]
                         
     def getCurrent_lock_holder(self,request,context):
@@ -252,42 +277,180 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         print(f"current lock holder: {self.current_lock_holder}")
         return lock_pb2.Response(status=lock_pb2.Status.SUCCESS, current_lock_holder=holder)
 
+
+    def file_append_backup(self,request,context):
+        if self.role != BACKUP_SERVER:
+            return
+        filename = request.filename
+        content = request.content.decode()
+        is_error = False
+        try:
+            # Perform the file append on the backup servers
+            print(f"Appending to file \n : {filename+self.current_address[-1]}")
+            print(f"Append for backup")
+            with open(filename+f"_{self.current_address[-1]}.txt", 'a') as file:
+                file.write(f" {content}")
+           
+            if is_error:
+                #TO DO : retry replication for some time else timeout
+                return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+            else:
+                return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+
+        except FileNotFoundError:
+            is_error = True
+            return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+
     def file_append(self, request, context):
         client_id = request.client_id
         request_id = request.request_id
         filename = request.filename
         content = request.content.decode()
         is_error = False
-        
+
         with self.lock:
             if is_duplicate_request(request_id):
                 if request_id not in self.append_request_cache:
                     if is_error:
-                        is_error=False
+                        is_error = False
                         return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)   
                     return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
                 else:
                     return lock_pb2.Response(status=lock_pb2.Status.DUPLICATE_ERROR)
-        
+
         mark_request_processed(request_id)
         self.append_request_cache[request_id] = True
-        
+
         try:
-            with open(filename, 'a') as file:
+            # Replicate the append operation to backup servers synchronously
+            if self.role == PRIMARY_SERVER:
+                replication_success = self.replicate_append_to_backups(filename, request.content)
+                if not replication_success:
+                    is_error = True
+            
+            if(is_error):
+                print("Failed to backup data")
+
+            # Perform the file append on the primary server
+            print(f"Appending to file \n : {filename+self.current_address[-1]}")
+            with open(filename+f"_{self.current_address[-1]}.txt", 'a') as file:
                 file.write(f" {content}")
-                self.cleanup_cache(request_id)
+
+            print(f"File {filename} appended with content: '{content}' by client {client_id}")
+
+
+            # Cleanup request cache
+            self.cleanup_cache(request_id)
+
+            if is_error:
+                # Retry replication or handle the error accordingly
+                return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+            else:
                 return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
 
         except FileNotFoundError:
-                log_event(f"File {filename} not found for client {client_id}")
-                is_error=True
-                self.cleanup_cache(request_id)
-                return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
-            
+            is_error = True
+            self.cleanup_cache(request_id)
+            return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+        
+    def replicate_append_to_backups(self, filename, content):
+        success = True
+        for server, server_stub in self.active_backups_server.items():
+            if server == self.current_address:
+                continue
+            result = self.replicate_append_to_backup(server,server_stub, filename, content)
+            if not result:
+                success = False
+        return success
+
+    def replicate_append_to_backup(self,server, server_stub, filename, content):
+        try:
+           response = server_stub.file_append_backup(lock_pb2.FileAppendBackup(filename=filename, content=content))
+           print(f"Replicated to: {server}")
+           return response.status == lock_pb2.Status.SUCCESS
+        except grpc.RpcError as e:
+            print(f"Failed to replicate to {e.details()}, as it is unavailable")
+            return False
+
+    def sync_each_file(self, server_stub, filename, content):
+        """Send a single file's content to the backup server."""
+        try:
+            response = server_stub.sync_file(lock_pb2.FileAppendBackup(filename=filename, content=content))
+            if response.status != lock_pb2.Status.SUCCESS:
+                print(f"Failed to sync {filename} with backup.")
+        except grpc.RpcError as e:
+            print(f"Error syncing {filename} with backup: {e.details()}")
+
+
+    def sync_file(self, request, context):
+        filename = request.filename +"_"+ self.current_address[-1]+".txt"
+        content = request.content.decode()
+        try:
+            with open(filename,"w") as sync_file:
+                sync_file.write(content)
+                sync_file.close()
+                return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+            print(f"File {filename} synced")
+        except grpc.RpcError:
+            print(f"Failed to synced {filename}")
+            return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+
+    def sync_backup_files(self, backup_server, server_stub):
+        """Sync all files (file_0 to file_99) with the backup server."""
+        for i in range(100):
+            filename = f"Server/Files/file_{i}_{self.current_address[-1]}.txt"
+            print(f"Syncing all files with {backup_server}")
+            if os.path.exists(filename):
+                with open(filename, "rb") as file:
+                    content = file.read()
+                    self.sync_each_file(server_stub, filename[:-6], content)
+            print(f"Sync successful for all files with {backup_server}")
+
     def cleanup_cache(self, request_id):
         with self.lock:
             if request_id in self.append_request_cache:
                 del self.append_request_cache[request_id]
+
+    def log_event_to_backup(self, event):
+        for backup_address, backup_stub in self.active_backups_server.items():
+            if backup_address == self.current_address:
+                continue
+            try:
+                backup_stub.log_event_primary(lock_pb2.Log(event=event.encode()))
+                print(f"Log sent to backup at {backup_address}")
+            except grpc.RpcError as e:
+                print(f"Failed to send logs to backup at {e.details()}")
+                return False
+
+
+    def log_event_primary(self,request,context):
+        content = request.event.decode()
+        print("Received logs from backup")
+        try:
+            log_event(content,self.current_address[-1])  
+            return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+        except grpc.RpcError:
+            return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+    
+    def sync_log(self,request,context):
+        content = request.event.decode()
+        print("Received logs from backup")
+        try:
+            write_logs(content, self.current_address[-1])
+            return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+        except grpc.RpcError:
+            return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+        
+    def sync_logs_with_backup(self,backup_server,server_stub):
+        content = get_log_content(self.current_address[-1]).encode()
+        try:
+            server_stub.sync_log(lock_pb2.Log(event = content))
+            print(f"{backup_server} was synced up with primary")
+        except grpc.RpcError as e:
+            print(f"Fail to sync {e.details()} up with primary")
+            return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
+
+        
                 
 def serve(server_id,peers,role):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
@@ -313,6 +476,7 @@ def serve(server_id,peers,role):
             print("No Port available")
 
     server.wait_for_termination()
+
 
 if __name__ == '__main__':
     # Set role as "primary" or "backup" here. Defaulting to primary for demonstration.

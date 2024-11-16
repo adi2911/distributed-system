@@ -5,16 +5,17 @@ import socket
 
 
 # Define the log file path
-LOG_FILE = "server_state_log.json"
 
-def log_event(event):
+def log_event(event,server_id):
     """Append an event to the log file."""
+    LOG_FILE = f"Server/server_{server_id}_log.json"
     with open(LOG_FILE, "a") as f:
         timestamped_event = {"timestamp": time.time(), "event": event}
         f.write(json.dumps(timestamped_event) + "\n")
 
-def load_server_state(server):
+def load_server_state(server,server_id):
     """Load the server's state from the log file on restart."""
+    LOG_FILE = f"Server/server_{server_id}_log.json"
     if not os.path.exists(LOG_FILE):
         return  # No log file means no state to restore
 
@@ -65,3 +66,21 @@ def is_port_available(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(1)  # Set a short timeout for the check
         return s.connect_ex(('localhost', port)) != 0  # Returns True if port is available
+
+
+def write_logs(content,server_id):
+    LOG_FILE = f"Server/server_{server_id}_log.json"
+    with open(LOG_FILE, "w") as f:
+        f.write(content)
+ 
+def get_log_content(server_id):
+    """Read all log entries for a specific server and return them as a single formatted string."""
+    LOG_FILE = f"Server/server_{server_id}_log.json"
+    log_entries = []
+
+    try:
+        with open(LOG_FILE, "r") as f:
+            return f.read()
+    except FileNotFoundError:
+        print(f"Log file for server {server_id} not found.")
+    

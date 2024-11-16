@@ -64,6 +64,36 @@ class LockServiceStub(object):
                 request_serializer=Proto_dot_lock__pb2.Heartbeat.SerializeToString,
                 response_deserializer=Proto_dot_lock__pb2.Response.FromString,
                 _registered_method=True)
+        self.getCurrent_lock_holder = channel.unary_unary(
+                '/lock_service.LockService/getCurrent_lock_holder',
+                request_serializer=Proto_dot_lock__pb2.current_lock_holder.SerializeToString,
+                response_deserializer=Proto_dot_lock__pb2.Response.FromString,
+                _registered_method=True)
+        self.vote = channel.unary_unary(
+                '/lock_service.LockService/vote',
+                request_serializer=Proto_dot_lock__pb2.VoteRequest.SerializeToString,
+                response_deserializer=Proto_dot_lock__pb2.VoteResponse.FromString,
+                _registered_method=True)
+        self.file_append_backup = channel.unary_unary(
+                '/lock_service.LockService/file_append_backup',
+                request_serializer=Proto_dot_lock__pb2.FileAppendBackup.SerializeToString,
+                response_deserializer=Proto_dot_lock__pb2.Response.FromString,
+                _registered_method=True)
+        self.log_event_primary = channel.unary_unary(
+                '/lock_service.LockService/log_event_primary',
+                request_serializer=Proto_dot_lock__pb2.Log.SerializeToString,
+                response_deserializer=Proto_dot_lock__pb2.Response.FromString,
+                _registered_method=True)
+        self.sync_log = channel.unary_unary(
+                '/lock_service.LockService/sync_log',
+                request_serializer=Proto_dot_lock__pb2.Log.SerializeToString,
+                response_deserializer=Proto_dot_lock__pb2.Response.FromString,
+                _registered_method=True)
+        self.sync_file = channel.unary_unary(
+                '/lock_service.LockService/sync_file',
+                request_serializer=Proto_dot_lock__pb2.FileAppendBackup.SerializeToString,
+                response_deserializer=Proto_dot_lock__pb2.Response.FromString,
+                _registered_method=True)
 
 
 class LockServiceServicer(object):
@@ -105,6 +135,42 @@ class LockServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def getCurrent_lock_holder(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def vote(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def file_append_backup(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def log_event_primary(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def sync_log(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def sync_file(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_LockServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -136,6 +202,36 @@ def add_LockServiceServicer_to_server(servicer, server):
             'heartbeat': grpc.unary_unary_rpc_method_handler(
                     servicer.heartbeat,
                     request_deserializer=Proto_dot_lock__pb2.Heartbeat.FromString,
+                    response_serializer=Proto_dot_lock__pb2.Response.SerializeToString,
+            ),
+            'getCurrent_lock_holder': grpc.unary_unary_rpc_method_handler(
+                    servicer.getCurrent_lock_holder,
+                    request_deserializer=Proto_dot_lock__pb2.current_lock_holder.FromString,
+                    response_serializer=Proto_dot_lock__pb2.Response.SerializeToString,
+            ),
+            'vote': grpc.unary_unary_rpc_method_handler(
+                    servicer.vote,
+                    request_deserializer=Proto_dot_lock__pb2.VoteRequest.FromString,
+                    response_serializer=Proto_dot_lock__pb2.VoteResponse.SerializeToString,
+            ),
+            'file_append_backup': grpc.unary_unary_rpc_method_handler(
+                    servicer.file_append_backup,
+                    request_deserializer=Proto_dot_lock__pb2.FileAppendBackup.FromString,
+                    response_serializer=Proto_dot_lock__pb2.Response.SerializeToString,
+            ),
+            'log_event_primary': grpc.unary_unary_rpc_method_handler(
+                    servicer.log_event_primary,
+                    request_deserializer=Proto_dot_lock__pb2.Log.FromString,
+                    response_serializer=Proto_dot_lock__pb2.Response.SerializeToString,
+            ),
+            'sync_log': grpc.unary_unary_rpc_method_handler(
+                    servicer.sync_log,
+                    request_deserializer=Proto_dot_lock__pb2.Log.FromString,
+                    response_serializer=Proto_dot_lock__pb2.Response.SerializeToString,
+            ),
+            'sync_file': grpc.unary_unary_rpc_method_handler(
+                    servicer.sync_file,
+                    request_deserializer=Proto_dot_lock__pb2.FileAppendBackup.FromString,
                     response_serializer=Proto_dot_lock__pb2.Response.SerializeToString,
             ),
     }
@@ -300,6 +396,168 @@ class LockService(object):
             target,
             '/lock_service.LockService/heartbeat',
             Proto_dot_lock__pb2.Heartbeat.SerializeToString,
+            Proto_dot_lock__pb2.Response.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def getCurrent_lock_holder(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/lock_service.LockService/getCurrent_lock_holder',
+            Proto_dot_lock__pb2.current_lock_holder.SerializeToString,
+            Proto_dot_lock__pb2.Response.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def vote(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/lock_service.LockService/vote',
+            Proto_dot_lock__pb2.VoteRequest.SerializeToString,
+            Proto_dot_lock__pb2.VoteResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def file_append_backup(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/lock_service.LockService/file_append_backup',
+            Proto_dot_lock__pb2.FileAppendBackup.SerializeToString,
+            Proto_dot_lock__pb2.Response.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def log_event_primary(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/lock_service.LockService/log_event_primary',
+            Proto_dot_lock__pb2.Log.SerializeToString,
+            Proto_dot_lock__pb2.Response.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def sync_log(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/lock_service.LockService/sync_log',
+            Proto_dot_lock__pb2.Log.SerializeToString,
+            Proto_dot_lock__pb2.Response.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def sync_file(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/lock_service.LockService/sync_file',
+            Proto_dot_lock__pb2.FileAppendBackup.SerializeToString,
             Proto_dot_lock__pb2.Response.FromString,
             options,
             channel_credentials,
