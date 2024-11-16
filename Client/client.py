@@ -123,8 +123,15 @@ class Client:
         while not self.stop_heartbeat:
             try:
                 time.sleep(5)  # Send heartbeat every 5 seconds
-                self.stub.heartbeat(lock_pb2.Heartbeat(client_id=self.client_id))
-            except grpc.RpcError:
+                response = self.stub.heartbeat(lock_pb2.Heartbeat(client_id=self.client_id))
+                if response.status == lock_pb2.Status.TIMEOUT_ERROR:
+                    print("Received TIMEOUT_ERROR: Lock released by server due to timeout.")
+                    self.stop_heartbeat = True  # Stop sending heartbeats
+                    break
+            except grpc.RpcError as e:
+                print(f"{grpc.RpcError}")
+                print(f"gRPC error code: {e.code()}")
+                print(f"gRPC error details: {e.details()}")
                 print("Failed to send heartbeat: Server may be unavailable.")
                 break
 
@@ -197,12 +204,8 @@ if __name__ == '__main__':
     client = Client()
     client.RPC_init()
     client.RPC_lock_acquire()
-    time.sleep(35)
+    time.sleep(15)
     file_path = "./Server/Files/file_0"
-    client.append_file(filename=file_path,content = 'A')
-    client.append_file(filename=file_path,content = 'A')
-    client.append_file(filename=file_path,content = 'A')
-    client.append_file(filename=file_path,content = 'A')
-    client.append_file(filename=file_path,content = 'A')
+    client.append_file(filename=file_path,content = 'B')
     client.RPC_lock_release()
 

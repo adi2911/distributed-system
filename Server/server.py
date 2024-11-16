@@ -32,6 +32,8 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         self.current_address = 'localhost:50051'
         self.append_request_cache = {}
         self.active_backups_server = {}
+        self.completed_operations_cache = {}
+        self.lock_acquire_times = {}
 
         # Load state on startup
         load_server_state(self,self.current_address[-1])
@@ -158,6 +160,21 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
             client_id = request.client_id
             with self.lock:
                 self.heartbeat_intervals[client_id] = time.time()
+                if self.current_lock_holder == client_id:
+                    lock_acquire_time = self.lock_acquire_times.get(client_id)
+                    if (time.time() - lock_acquire_time) > 120:
+                        event = f"Lock hold timeout for client: {self.current_lock_holder}"
+                        log_event(event,self.current_address[-1])
+                        self.current_lock_holder = None
+                        
+                        if self.waiting_queue:
+                            next_client_id, _ = self.waiting_queue.popleft()
+                            self.current_lock_holder = next_client_id
+                            self.heartbeat_intervals[next_client_id] = time.time()
+                            event = f"Lock granted to next client in queue: {next_client_id}"
+                            log_event(event,self.current_address[-1])
+                        del self.heartbeat_intervals[client_id]
+                        return lock_pb2.Response(status=lock_pb2.Status.TIMEOUT_ERROR)
         return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
 
     def client_init(self, request, context):
@@ -178,6 +195,7 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
         client_id = request.client_id
         request_id = request.request_id
         peer = context.peer()
+        self.lock_acquire_times[client_id] = time.time()
 
         with self.lock:
             if is_duplicate_request(request_id):
@@ -315,6 +333,8 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
                         is_error = False
                         return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)   
                     return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
+                elif request_id in self.completed_operations_cache:
+                    return lock_pb2.Response(status=lock_pb2.Status.SUCCESS)
                 else:
                     return lock_pb2.Response(status=lock_pb2.Status.DUPLICATE_ERROR)
 
@@ -335,9 +355,9 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
             print(f"Appending to file \n : {filename+self.current_address[-1]}")
             with open(filename+f"_{self.current_address[-1]}.txt", 'a') as file:
                 file.write(f" {content}")
-
+                
+            self.completed_operations_cache[request_id] = True
             print(f"File {filename} appended with content: '{content}' by client {client_id}")
-
 
             # Cleanup request cache
             self.cleanup_cache(request_id)
