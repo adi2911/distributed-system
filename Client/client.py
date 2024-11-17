@@ -17,6 +17,8 @@ class Client:
         self.request_counter = 0
         self.stop_heartbeat = False
         self.ports_to_try = ["50051", "50052", "50053","50054"]  # Define additional ports to try
+        self.lock_held = False
+        self.connection_closed = False
  
 
     def generate_request_id(self):
@@ -70,6 +72,7 @@ class Client:
                 retry_interval = 5
                 if response.status == lock_pb2.Status.SUCCESS:
                     print(f"Lock has been acquired by client: {self.client_id}")
+                    self.lock_held = True
                     break
                 elif response.status == lock_pb2.Status.DUPLICATE_ERROR:
                     print("Your request is being processed.")
@@ -101,6 +104,7 @@ class Client:
                 if response.status == lock_pb2.Status.SUCCESS:
                     print(f"Lock has been released by client: {self.client_id}")
                     # Stop the heartbeat thread
+                    self.lock_held = False
                     self.stop_heartbeat = True
                     if hasattr(self, 'heartbeat_thread'):
                         self.heartbeat_thread.join()
@@ -126,7 +130,10 @@ class Client:
                 response = self.stub.heartbeat(lock_pb2.Heartbeat(client_id=self.client_id))
                 if response.status == lock_pb2.Status.TIMEOUT_ERROR:
                     print("Received TIMEOUT_ERROR: Lock released by server due to timeout.")
-                    self.stop_heartbeat = True  # Stop sending heartbeats
+                    self.stop_heartbeat = True
+                    self.lock_held = False
+                    self.RPC_close()
+                    self.connection_closed = True
                     break
             except grpc.RpcError as e:
                 print(f"{grpc.RpcError}")
@@ -158,8 +165,8 @@ class Client:
             print(f"Connection successful with new server")
             break
         if flag :
-            print("No server available")
-            sys.exit()
+            self.RPC_close()  # Cleanup before exiting
+            sys.exit("Exiting: No available servers.")
 
 
     def append_file(self, filename, content):
@@ -168,23 +175,26 @@ class Client:
         timeout = 5
         while True:
                 try:
-                    lock_holder_response = self.stub.getCurrent_lock_holder(lock_pb2.current_lock_holder(client_id=self.client_id))
-                    if self.client_id==lock_holder_response.current_lock_holder.client_id:
+                    if not client.connection_closed:
+                        lock_holder_response = self.stub.getCurrent_lock_holder(lock_pb2.current_lock_holder(client_id=self.client_id))
+                        if self.client_id==lock_holder_response.current_lock_holder.client_id:
                             response=self.stub.file_append(lock_pb2.file_args(filename=filename,content=content.encode(),client_id=self.client_id,request_id=request_id))
                             timeout = 5
                             retry_interval = 5
                             if response.status== lock_pb2.Status.SUCCESS:
-                              print(f"File has been appended by client {self.client_id} ")
-                              break
+                                print(f"File has been appended by client {self.client_id} ")
+                                break
                             elif response.status== lock_pb2.Status.DUPLICATE_ERROR:
-                              print("Your query is being processed.")
-                              time.sleep(retry_interval)
-                              retry_interval = min(retry_interval + 2, 30)
+                                print("Your query is being processed.")
+                                time.sleep(retry_interval)
+                                retry_interval = min(retry_interval + 2, 30)
                             else:
-                              print("Failed to append file.")
-                              break
+                                print("Failed to append file.")
+                                break
+                        else:
+                            client.RPC_lock_acquire()
                     else:
-                        client.RPC_lock_acquire()
+                        break
                 except grpc.RpcError:
                     if timeout >= SWITCH_SERVER_TIMEOUT:
                       print(f"Maximum retries reached, switching to different server")
@@ -197,15 +207,48 @@ class Client:
 
 
     def RPC_close(self):
-        pass
+        if self.connection_closed:
+            print("RPC connection is already closed. Skipping...")
+            return
+        
+        self.connection_closed = True
+        print(f"Closing RPC connection for client {self.client_id}...")
+        if self.lock_held:
+            try:
+                if hasattr(self, 'channel') and self.channel._channel.check_connectivity_state(True) != grpc.ChannelConnectivity.SHUTDOWN:
+                    print("Releasing lock before closing...")
+                    self.RPC_lock_release()
+                else:
+                    print("Cannot release lock: Channel is inactive or closed.")
+            except grpc.RpcError as e:
+                print(f"Failed to release lock due to: {e.details()}")
+            except ValueError as e:
+                print(f"Error during lock release: {e}")
+
+        # Close the gRPC channel
+        if hasattr(self, 'channel') and self.channel:
+            try:
+                self.channel.close()
+                print("gRPC channel closed.")
+            except Exception as e:
+                print(f"Failed to close gRPC channel: {e}")
+
+        print("Client shutdown complete.")
+        return
 
 if __name__ == '__main__':
     base_directory = "Server/Files/"
     client = Client()
-    client.RPC_init()
-    client.RPC_lock_acquire()
-    time.sleep(15)
-    file_path = "./Server/Files/file_0"
-    client.append_file(filename=file_path,content = 'B')
-    client.RPC_lock_release()
+    try:
+        client.RPC_init()
+        client.RPC_lock_acquire()
+        time.sleep(15)
+        file_path = "./Server/Files/file_0"
+        client.append_file(filename=file_path, content='A')
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        # Graceful shutdown
+        if not client.connection_closed:
+            client.RPC_close()
 
