@@ -7,26 +7,25 @@ import threading
 from .utils import is_port_available
 import sys
 
-
 SWITCH_SERVER_TIMEOUT = 25
 MAXIMUM_RETRIES = 60
-
 class Client:
     def __init__(self):
-        self.client_id = None
-        self.request_counter = 0
-        self.stop_heartbeat = False
+        self.client_id = None # Client ID assigned by the server
+        self.request_counter = 0 # Counter for generating request IDs
+        self.stop_heartbeat = False # Flag to stop the heartbeat thread
         self.ports_to_try = ["50051", "50052", "50053","50054"]  # Define additional ports to try
-        self.lock_held = False
-        self.connection_closed = False
+        self.lock_held = False # Flag to indicate if the client holds the lock
+        self.connection_closed = False # Flag to indicate if the connection is closed
  
 
     def generate_request_id(self):
+        # Generate a unique request ID for RPC calls
         self.request_counter += 1
         return f"{self.client_id}-{self.request_counter}"
 
     def RPC_init(self):
-        #Assuming no primary connection in starting
+        # Initialize connection to the primary server
         flag = True
         for port in self.ports_to_try:
             if is_port_available(int(port)):
@@ -39,7 +38,7 @@ class Client:
                 request = lock_pb2.Int()
                 response = self.stub.client_init(request)
 
-                #If connected to primary successfully
+                # Check if connected to the primary server
                 if(response.rc != -1):
                     flag = False
                 break
@@ -52,16 +51,19 @@ class Client:
             raise ConnectionError("Could not connect to any of the specified ports.")
 
         print("Initialized connection with server:", response)
-        self.client_id = response.rc
+        self.client_id = response.rc # Assign client ID from the server
         print(f"Assigned client with id: {self.client_id}")
 
     def RPC_lock_acquire(self):
+        # Attempt to acquire the lock from the server
         retry_interval = 5
         timeout=5
         request_id = self.generate_request_id()
+        
         # Start the heartbeat thread
         self.heartbeat_thread = threading.Thread(target=self.send_heartbeats, daemon=True)
         self.heartbeat_thread.start()
+        
         while True:
             try:
                 response = self.stub.lock_acquire(lock_pb2.lock_args(
@@ -80,7 +82,6 @@ class Client:
                     print(f"Client {self.client_id} is waiting in queue.")
                     time.sleep(retry_interval)
                 
-
             except grpc.RpcError:
                 print(f"Server is unavailable. Retrying in {retry_interval} seconds...")
                 if timeout >= SWITCH_SERVER_TIMEOUT:
@@ -92,7 +93,8 @@ class Client:
                 retry_interval = min(retry_interval + 2, 20)
 
     def RPC_lock_release(self):
-        retry_interval = 5  # Initial retry interval
+        # Release the lock held by the client
+        retry_interval = 5
         request_id = self.generate_request_id()
         timeout=5
         while True:
@@ -108,10 +110,10 @@ class Client:
                     self.stop_heartbeat = True
                     if hasattr(self, 'heartbeat_thread'):
                         self.heartbeat_thread.join()
-                    break  # Exit the loop if lock release was successful
+                    break
                 else:
                     print(f"Lock cannot be released by client: {self.client_id} as it doesn't hold the lock")
-                    break  # Exit if lock release failed for other reasons
+                    break
 
             except grpc.RpcError:
                 print(f"Server is unavailable. Retrying in {retry_interval} seconds...")
@@ -121,9 +123,10 @@ class Client:
                     continue
                 timeout +=5
                 time.sleep(retry_interval)
-                retry_interval = min(retry_interval + 2, 20)  # Exponential backoff with a max wait time  # Exponential backoff with a max wait time
+                retry_interval = min(retry_interval + 2, 20)  # Exponential backoff with a max wait time
 
     def send_heartbeats(self):
+        # Periodically send heartbeats to the server
         while not self.stop_heartbeat:
             try:
                 time.sleep(5)  # Send heartbeat every 5 seconds
@@ -136,14 +139,11 @@ class Client:
                     self.connection_closed = True
                     break
             except grpc.RpcError as e:
-                print(f"{grpc.RpcError}")
-                print(f"gRPC error code: {e.code()}")
-                print(f"gRPC error details: {e.details()}")
                 print("Failed to send heartbeat: Server may be unavailable.")
                 break
 
     def switch_server(self):
-        #trying to connect to one of the backup sever
+        # Switch to a backup server if the current server is unavailable
         servers = ['localhost: 50052','localhost: 50053','localhost: 50054','localhost: 50051']
         retries = 0
         flag = True
@@ -170,7 +170,8 @@ class Client:
 
 
     def append_file(self, filename, content):
-        retry_interval = 5  # Initial retry interval
+        # Append content to a file on the server
+        retry_interval = 5
         request_id = self.generate_request_id()
         timeout = 5
         while True:
@@ -204,9 +205,8 @@ class Client:
                     timeout +=5
                     retry_interval = min(retry_interval + 2, 20)                     
 
-
-
     def RPC_close(self):
+        # Close the RPC connection and clean up resources
         if self.connection_closed:
             print("RPC connection is already closed. Skipping...")
             return
@@ -225,7 +225,6 @@ class Client:
             except ValueError as e:
                 print(f"Error during lock release: {e}")
 
-        # Close the gRPC channel
         if hasattr(self, 'channel') and self.channel:
             try:
                 self.channel.close()
