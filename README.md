@@ -43,15 +43,15 @@ This Distributed System is make using Exclusion lock mechanism along with multi-
 
 ## Client Library
    Client library main file is : Client/client.py
-   1. Create functional structure of client.py - Aditi
-   2. Create the proto files, using the command given - Aditi
-   3. Create init method. -  Himanshi
-   4. Create Acqruire lock method - Nandita
-   5. Create Release lock method - Nandita
-   6. Create Append file method - Himanshi
+   1. Create functional structure of client.py 
+   2. Create the proto files, using the command given 
+   3. Create init method.
+   4. Create Acqruire lock method 
+   5. Create Release lock method 
+   6. Create Append file method
        a. It should filter the file client is modifying 
        b. Perform append operation on it.
-   7. Create a prompt that takes input from client with the file name that needs to be updated. - Himanshi
+   7. Create a prompt that takes input from client with the file name that needs to be updated.
    8. Create close method.
    9. Add retry-mechanism - Aditi
    10. Send Heart-beat - Aditi
@@ -60,17 +60,17 @@ This Distributed System is make using Exclusion lock mechanism along with multi-
 ## Lock Server
    Server's main file is: Server/server.py. 
    For server implementation refer to the spinlock implementation given in assigment readme and assignment folder.
-   1. Create the proto files, using the command given - Aditi
-   2. Add 100 files to Server folder. - Aditi
-   3. Create functional structure of server.py - Aditi
-   4. Create the init method - Himanshi
+   1. Create the proto files, using the command given - 
+   2. Add 100 files to Server folder. - 
+   3. Create functional structure of server.py - 
+   4. Create the init method - 
    5. Create structure for multithreaded environment
-   6. Create the lock_acquire method - Nandita
-   7.  Create the lock_release method - Nandita
-   8. Create the append_file method. - Nanditaa
+   6. Create the lock_acquire method - 
+   7.  Create the lock_release method - 
+   8. Create the append_file method. - 
    9. Create close method
-   10. Add fault-tolerance for server crash - Aditi
-   11. Add Heart-beat mechanism - Aditi
+   10. Add fault-tolerance for server crash - 
+   11. Add Heart-beat mechanism - 
 
 
 # Design Pointers

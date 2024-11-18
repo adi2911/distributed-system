@@ -242,7 +242,7 @@ class Client:
                 self.channel.close()
                 print("gRPC channel closed.")
             except Exception as e:
-                print(f"Failed to close gRPC channel: {e}"
+                print(f"Failed to close gRPC channel: {e}")
 
         print("Client shutdown complete.")
         return
