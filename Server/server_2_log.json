@@ -1,8 +1,0 @@
-{"timestamp": 1731630115.5359502, "event": "Client initialized with client_id: 1"}
-{"timestamp": 1731630115.536683, "event": "Lock acquired by client: 1"}
-{"timestamp": 1731630150.542635, "event": "Lock released by client: 1"}
-{"timestamp": 1731630356.6134331, "event": "Client initialized with client_id: 2"}
-{"timestamp": 1731630356.6148229, "event": "Lock acquired by client: 2"}
-{"timestamp": 1731630409.7797718, "event": "Lock automatically released due to timeout for client: 2"}
-{"timestamp": 1731630423.6504939, "event": "Lock acquired by client: 2"}
-{"timestamp": 1731630423.660331, "event": "Lock released by client: 2"}

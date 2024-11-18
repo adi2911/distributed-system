@@ -380,6 +380,16 @@ class LockServiceServicer(lock_pb2_grpc.LockServiceServicer):
             self.cleanup_cache(request_id)
             return lock_pb2.Response(status=lock_pb2.Status.FILE_ERROR)
         
+    def Ping(self, request, context):
+        response = lock_pb2.PingResponse()
+        try:
+            # Perform any basic checks, such as server readiness
+            response.status = "OK"  # Return "OK" if the server is healthy
+        except Exception as e:
+            print(f"Error during Ping: {e}")
+            response.status = "ERROR"  # Return "ERROR" if something is wrong
+        return response
+        
     def replicate_append_to_backups(self, filename, content):
         # Replicate file append operation to all active backup servers
         success = True
