@@ -528,25 +528,12 @@ def serve(server_id,peers,role):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     lock_service = LockServiceServicer(server_id, peers,role=role)
     lock_pb2_grpc.add_LockServiceServicer_to_server(lock_service, server)
+    server.add_insecure_port(f'[::]:{server_id}')
+    server.start()
+    lock_service.current_address = f"localhost:{server_id}"
     if(role == PRIMARY_SERVER):
-        # Start the primary server on port 50051
-        server.add_insecure_port('[::]:50051')
-        server.start()
         threading.Thread(target=lock_service.check_heartbeats, daemon=True).start()
-    else:
-        flag = True
-        ports = [50052, 50053, 50054]
-
-        for port in ports:
-            if is_port_available(port):
-                flag = False
-                server.add_insecure_port(f'[::]:{port}')
-                lock_service.current_address = f"localhost:{port}"
-                server.start()
-                print(f"{role.capitalize()} server started at: {port}")
-                break
-        if flag is True:
-            print("No Port available")
+    print(f"{role.capitalize()} server started at: {server_id}")
     
     # Handle server termination signals (e.g., SIGINT, SIGTERM)
     def signal_handler(sig, frame):

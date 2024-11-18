@@ -242,7 +242,7 @@ class Client:
                 self.channel.close()
                 print("gRPC channel closed.")
             except Exception as e:
-                print(f"Failed to close gRPC channel: {e}")
+                print(f"Failed to close gRPC channel: {e}"
 
         print("Client shutdown complete.")
         return
@@ -251,24 +251,17 @@ class Client:
 if __name__ == '__main__':
     base_directory = "Server/Files/"
     client = Client()
-    client.RPC_init()
-    client.RPC_lock_acquire()
-    time.sleep(35)
-    file_path = "./Server/Files/file_0"
-    client.append_file(filename=file_path,content = 'A')
-    client.append_file(filename=file_path,content = 'A')
-    file_path = "./Server/Files/file_1"
-    client.append_file(filename=file_path,content = 'A')
-    client.append_file(filename=file_path,content = 'A')
-    file_path = "./Server/Files/file_2"
-    client.append_file(filename=file_path,content = 'A')
-    client.append_file(filename=file_path,content = 'A')
-    file_path = "./Server/Files/file_3"
-    client.append_file(filename=file_path,content = 'A')
-    client.append_file(filename=file_path,content = 'A')
-    file_path = "./Server/Files/file_4"
-    client.append_file(filename=file_path,content = 'A')
-    client.append_file(filename=file_path,content = 'A')
-    client.RPC_lock_release()
+    try:
+        client.RPC_init()
+        client.RPC_lock_acquire()
+        time.sleep(15)
+        file_path = "./Server/Files/file_0"
+        client.append_file(filename=file_path, content='A')
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        # Graceful shutdown
+        if not client.connection_closed:
+            client.RPC_close()
 
 
