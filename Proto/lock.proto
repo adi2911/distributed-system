@@ -63,6 +63,13 @@ message Log{
     bytes event = 1;
 }
 
+message Empty {}
+
+// Message for the Ping response
+message PingResponse {
+  string status = 1;  // Example: "OK" for healthy, "ERROR" for unhealthy
+}
+
 service LockService {
     rpc client_init(Int) returns (Int);
     rpc lock_acquire(lock_args) returns (Response);
@@ -76,4 +83,5 @@ service LockService {
     rpc log_event_primary(Log) returns (Response);
     rpc sync_log(Log) returns (Response);
     rpc sync_file(FileAppendBackup) returns (Response);
+    rpc Ping(Empty) returns (PingResponse);
 }
