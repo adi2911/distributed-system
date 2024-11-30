@@ -1,3 +1,13 @@
+<<<<<<< Updated upstream
 {"timestamp": 1731630115.5359502, "event": "Client initialized with client_id: 1"}
 {"timestamp": 1731630115.536683, "event": "Lock acquired by client: 1"}
 {"timestamp": 1731630150.542635, "event": "Lock released by client: 1"}
+=======
+{"timestamp": 1732991464.6926618, "event": "Client initialized with client_id: 1"}
+{"timestamp": 1732991464.7414818, "event": "Lock acquired by client: 1"}
+{"timestamp": 1732991467.6651435, "event": "Client initialized with client_id: 2"}
+{"timestamp": 1732991467.7481592, "event": "Client added to waiting queue : 2"}
+{"timestamp": 1732991495.0727575, "event": "Lock released by client: 1"}
+{"timestamp": 1732991495.0927644, "event": "Lock granted to next client in queue: 2"}
+{"timestamp": 1732991497.8782105, "event": "Lock released by client: 2"}
+>>>>>>> Stashed changes
