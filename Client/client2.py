@@ -252,13 +252,13 @@ if __name__ == '__main__':
     base_directory = "Server/Files/"
     client = Client()
     client.RPC_init()
+    time.sleep(30)
     client.RPC_lock_acquire()
     file_path = "./Server/Files/file_0"
-    client.append_file(filename=file_path,content = 'A')
-    client.append_file(filename=file_path,content = 'A')
-    client.append_file(filename=file_path,content = 'A')
-    client.append_file(filename=file_path,content = 'A')
-    client.append_file(filename=file_path,content = 'A')
+    client.append_file(filename=file_path,content = 'B')
+    client.append_file(filename=file_path,content = 'B')
+    client.append_file(filename=file_path,content = 'B')
+    client.append_file(filename=file_path,content = 'B')
+    client.append_file(filename=file_path,content = 'B')
     client.RPC_lock_release()
-
 

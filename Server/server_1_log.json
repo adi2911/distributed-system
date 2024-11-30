@@ -1,0 +1,10 @@
+{"timestamp": 1732994429.3630545, "event": "Client initialized with client_id: 1"}
+{"timestamp": 1732994429.4010525, "event": "Lock acquired by client: 1"}
+{"timestamp": 1732994436.2827375, "event": "Client initialized with client_id: 2"}
+{"timestamp": 1732994439.5080185, "event": "Client initialized with client_id: 3"}
+{"timestamp": 1732994492.6300912, "event": "Lock automatically released due to timeout for client: 1"}
+{"timestamp": 1732994500.7308788, "event": "Lock acquired by client: 2"}
+{"timestamp": 1732994503.9046886, "event": "Client added to waiting queue : 3"}
+{"timestamp": 1732994531.7167444, "event": "Lock automatically released due to timeout for client: 2"}
+{"timestamp": 1732994531.7420886, "event": "Lock granted to next client in queue: 3"}
+{"timestamp": 1732994561.8127327, "event": "Lock automatically released due to timeout for client: 3"}

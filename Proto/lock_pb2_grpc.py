@@ -94,6 +94,11 @@ class LockServiceStub(object):
                 request_serializer=Proto_dot_lock__pb2.FileAppendBackup.SerializeToString,
                 response_deserializer=Proto_dot_lock__pb2.Response.FromString,
                 _registered_method=True)
+        self.Ping = channel.unary_unary(
+                '/lock_service.LockService/Ping',
+                request_serializer=Proto_dot_lock__pb2.Empty.SerializeToString,
+                response_deserializer=Proto_dot_lock__pb2.PingResponse.FromString,
+                _registered_method=True)
 
 
 class LockServiceServicer(object):
@@ -171,6 +176,12 @@ class LockServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Ping(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_LockServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -233,6 +244,11 @@ def add_LockServiceServicer_to_server(servicer, server):
                     servicer.sync_file,
                     request_deserializer=Proto_dot_lock__pb2.FileAppendBackup.FromString,
                     response_serializer=Proto_dot_lock__pb2.Response.SerializeToString,
+            ),
+            'Ping': grpc.unary_unary_rpc_method_handler(
+                    servicer.Ping,
+                    request_deserializer=Proto_dot_lock__pb2.Empty.FromString,
+                    response_serializer=Proto_dot_lock__pb2.PingResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -559,6 +575,33 @@ class LockService(object):
             '/lock_service.LockService/sync_file',
             Proto_dot_lock__pb2.FileAppendBackup.SerializeToString,
             Proto_dot_lock__pb2.Response.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Ping(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/lock_service.LockService/Ping',
+            Proto_dot_lock__pb2.Empty.SerializeToString,
+            Proto_dot_lock__pb2.PingResponse.FromString,
             options,
             channel_credentials,
             insecure,
