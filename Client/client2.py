@@ -254,12 +254,11 @@ if __name__ == '__main__':
     client.RPC_init()
     client.RPC_lock_acquire()
     file_path = "./Server/Files/file_0"
-    client.append_file(filename=file_path,content = 'A')
+    client.append_file(filename=file_path,content = 'B')
     file_path = "./Server/Files/file_1"
-    client.append_file(filename=file_path,content = 'A')
-    time.sleep(10)
+    client.append_file(filename=file_path,content = 'B')
     file_path = "./Server/Files/file_2"
-    client.append_file(filename=file_path,content = 'A')
+    client.append_file(filename=file_path,content = 'B')
     client.RPC_lock_release()
 
 
