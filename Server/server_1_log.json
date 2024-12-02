@@ -1,7 +1,0 @@
-{"timestamp": 1732993160.4582164, "event": "Client initialized with client_id: 1"}
-{"timestamp": 1732993160.5173085, "event": "Lock acquired by client: 1"}
-{"timestamp": 1732993162.7342563, "event": "Client initialized with client_id: 2"}
-{"timestamp": 1732993162.779271, "event": "Client added to waiting queue : 2"}
-{"timestamp": 1732993170.6683474, "event": "Lock released by client: 1"}
-{"timestamp": 1732993170.6760676, "event": "Lock granted to next client in queue: 2"}
-{"timestamp": 1732993173.0421185, "event": "Lock released by client: 2"}
